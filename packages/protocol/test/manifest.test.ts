@@ -42,14 +42,23 @@ test('ignores unknown top-level keys and accepts handlers', () => {
 });
 
 test.each([
-  ['bad id', { id: 'Notepad' }],
-  ['two-part id', { id: 'earlyweb.notepad' }],
-  ['bad semver', { version: '1.0' }],
-  ['unknown permission', { permissions: ['fs.everything'] }],
-  ['entry escapes', { entry: '../x.html' }],
-  ['absolute entry', { entry: '/index.html' }],
-  ['bad host', { network: ['http://evil.com'] }],
-  ['wrong manifestVersion', { manifestVersion: 2 }],
-])('rejects %s with EINVAL', (_, patch) => {
-  expect(() => parseManifest({ ...valid, ...patch })).toThrow(expect.objectContaining({ code: 'EINVAL' }));
+  ['bad id', { id: 'Notepad' }, 'id'],
+  ['two-part id', { id: 'earlyweb.notepad' }, 'id'],
+  ['bad semver', { version: '1.0' }, 'version'],
+  ['unknown permission', { permissions: ['fs.everything'] }, 'permissions.0'],
+  ['entry escapes', { entry: '../x.html' }, 'entry'],
+  ['absolute entry', { entry: '/index.html' }, 'entry'],
+  ['bad host', { network: ['http://evil.com'] }, 'network.0'],
+  ['wrong manifestVersion', { manifestVersion: 2 }, 'manifestVersion'],
+])('rejects %s with EINVAL at path %s', (_, patch, path) => {
+  expect(() => parseManifest({ ...valid, ...patch })).toThrow(
+    expect.objectContaining({ code: 'EINVAL', message: expect.stringMatching(new RegExp(`^${path}: .+`)) }),
+  );
+});
+
+test('error message format is "<dotted path>: <message>"', () => {
+  expect(() => parseManifest({ ...valid, id: 'Notepad' })).toThrow(/^id: invalid app id$/);
+  expect(() => parseManifest({ ...valid, network: ['http://evil.com'] })).toThrow(
+    /^network\.0: invalid network host$/,
+  );
 });

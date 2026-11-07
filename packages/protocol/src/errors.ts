@@ -12,7 +12,7 @@ export const ERROR_CODES = [
 export type ErrorCode = (typeof ERROR_CODES)[number];
 
 export class EwError extends Error {
-  code: ErrorCode;
+  readonly code: ErrorCode;
   constructor(code: ErrorCode, message: string) {
     super(message);
     this.name = 'EwError';

@@ -1,6 +1,6 @@
 import type { FsBackend } from '@earlyweb/backends';
 import { useEffect, useRef } from 'preact/hooks';
-import { CONFIRM_GUARD_MS, cancelDialog, type DialogRequest, type DialogService } from './dialog-service.ts';
+import { armed, cancelDialog, type DialogRequest, type DialogService } from './dialog-service.ts';
 import { FileDialog } from './FileDialog.tsx';
 import { MessageBox } from './MessageBox.tsx';
 
@@ -14,8 +14,6 @@ const idOf = (r: DialogRequest) => {
   }
   return id;
 };
-
-const armed = (r: DialogRequest) => performance.now() - r.activatedAt >= CONFIRM_GUARD_MS;
 
 export { cancelDialog };
 
@@ -59,7 +57,10 @@ export function ModalLayer({ dialogs, fs }: { dialogs: DialogService; fs: FsBack
         onKeyDownCapture={(e) => {
           // Keystroke-jacking guard: no Enter/Space confirmation right after opening. Escape is never delayed.
           if ((e.key === 'Enter' || e.key === ' ') && !armed(req)) {
-            if (!(e.key === ' ' && (e.target as HTMLElement).tagName === 'INPUT')) {
+            const t = e.target as HTMLElement;
+            // Typing a space in the filename box is fine; Enter there is fine once the user has edited it.
+            const typing = t.tagName === 'INPUT' && (e.key === ' ' || t.dataset.edited === '1');
+            if (!typing) {
               e.preventDefault();
               e.stopPropagation();
             }
@@ -67,6 +68,12 @@ export function ModalLayer({ dialogs, fs }: { dialogs: DialogService; fs: FsBack
         }}
         onKeyUpCapture={(e) => {
           if (e.key === ' ' && !armed(req)) e.preventDefault();
+        }}
+        onDblClickCapture={(e) => {
+          if (!armed(req)) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
         }}
         onClickCapture={(e) => {
           if (!armed(req)) {

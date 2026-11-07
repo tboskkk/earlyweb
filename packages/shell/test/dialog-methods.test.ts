@@ -18,7 +18,7 @@ const ctx = (appId = 'org.x.app') => ({
   },
 });
 
-async function setup() {
+async function setup(isLive?: (id: string) => boolean) {
   const fs = await createIdbFs(`dlg-${n++}`);
   await ensureHome(fs);
   const grants = await createGrantTable(createMemoryKv());
@@ -33,7 +33,7 @@ async function setup() {
   };
   const onGrant = vi.fn();
   const issue = vi.spyOn(grants, 'issue');
-  const h = dialogHandlers({ dialogs, grants, fs, onGrant });
+  const h = dialogHandlers({ dialogs, grants, fs, onGrant, isLive });
   return { fs, grants, dialogs, onGrant, issue, h };
 }
 
@@ -205,4 +205,55 @@ test('dialog.message sanitizes the title and rejects a label that was not offere
   dialogs.message.mockResolvedValue('A');
   await h['dialog.message']?.(ctx(), { title: '‮abc\u0007', text: 'x', buttons: ['A'] });
   expect(dialogs.message).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'abc' }));
+});
+
+test('instance ending after the stat: no prompt is queued and nothing is granted', async () => {
+  let live = true;
+  const { h, dialogs, fs, onGrant, issue } = await setup(() => live);
+  await fs.write('/home/user/Documents/a.txt', new Blob(['x']));
+  // the instance ends while the handler is between its stat and the overwrite prompt
+  dialogs.saveFile.mockImplementation(async () => {
+    queueMicrotask(() => {});
+    return '/home/user/Documents/a.txt';
+  });
+  const realStat = fs.stat.bind(fs);
+  let calls = 0;
+  fs.stat = async (p: string) => {
+    const r = await realStat(p);
+    if (++calls === 2) live = false; // second stat = the existing-file check
+    return r;
+  };
+  expect(await code(h['dialog.save']?.(ctx(), {}) as Promise<unknown>)).toBe('ECANCELED');
+  expect(dialogs.message).not.toHaveBeenCalled();
+  expect(issue).not.toHaveBeenCalled();
+  expect(onGrant).not.toHaveBeenCalled();
+});
+
+test('instance ending while the overwrite prompt is up: Yes issues nothing', async () => {
+  let live = true;
+  const { h, dialogs, fs, onGrant, issue } = await setup(() => live);
+  await fs.write('/home/user/Documents/a.txt', new Blob(['x']));
+  dialogs.saveFile.mockResolvedValue('/home/user/Documents/a.txt');
+  dialogs.message.mockImplementation(async () => {
+    live = false;
+    return 'Yes';
+  });
+  expect(await code(h['dialog.save']?.(ctx(), {}) as Promise<unknown>)).toBe('ECANCELED');
+  expect(issue).not.toHaveBeenCalled();
+  expect(onGrant).not.toHaveBeenCalled();
+});
+
+test('instance ending during dialog.open stat: nothing is granted', async () => {
+  let live = true;
+  const { h, dialogs, fs, issue } = await setup(() => live);
+  await fs.write('/home/user/Documents/a.txt', new Blob(['x']));
+  dialogs.openFile.mockResolvedValue(['/home/user/Documents/a.txt']);
+  const realStat = fs.stat.bind(fs);
+  fs.stat = async (p: string) => {
+    const r = await realStat(p);
+    live = false;
+    return r;
+  };
+  expect(await code(h['dialog.open']?.(ctx(), {}) as Promise<unknown>)).toBe('ECANCELED');
+  expect(issue).not.toHaveBeenCalled();
 });

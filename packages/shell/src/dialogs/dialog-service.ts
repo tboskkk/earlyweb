@@ -71,6 +71,9 @@ export const MAX_PENDING_PER_INSTANCE = 3;
 export const CONFIRM_GUARD_MS = 400;
 const MAX_TEXT = 2000;
 
+/** True once the confirmation guard window after activation has passed. */
+export const armed = (r: DialogRequest): boolean => performance.now() - r.activatedAt >= CONFIRM_GUARD_MS;
+
 // Control and bidi override/isolate characters could spoof the dialog chrome.
 const UNSAFE = /[\p{Cc}‪-‮⁦-⁩]/gu;
 /** Message body: strips control (except newline/tab) and bidi characters, caps the length. */

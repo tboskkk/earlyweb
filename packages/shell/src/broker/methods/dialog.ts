@@ -14,6 +14,8 @@ type Deps = {
   fs: FsBackend;
   /** Called after each successful grant so the shell can record the most recent file for the instance. */
   onGrant?(instanceId: string, ref: FileRef): void;
+  /** Whether the instance still exists (default: always). Checked before the overwrite prompt and before issuing. */
+  isLive?(instanceId: string): boolean;
 };
 
 const appName = (ctx: CallContext) => ctx.instance.manifest.name || ctx.instance.appId;
@@ -33,7 +35,10 @@ function strictPath(p: string): string {
 }
 
 export function dialogHandlers(deps: Deps): Partial<Record<keyof MethodMap, Handler>> {
-  const { dialogs, grants, fs, onGrant } = deps;
+  const { dialogs, grants, fs, onGrant, isLive } = deps;
+  const assertLive = (ctx: CallContext) => {
+    if (isLive && !isLive(ctx.instance.instanceId)) throw new EwError('ECANCELED', 'Instance ended');
+  };
   const grant = (ctx: CallContext, path: string): FileRef => {
     const ref = grants.issue(ctx.instance.appId, path);
     onGrant?.(ctx.instance.instanceId, ref);
@@ -59,6 +64,7 @@ export function dialogHandlers(deps: Deps): Partial<Record<keyof MethodMap, Hand
         const st = await fs.stat(path);
         if (st?.kind !== 'file') throw new EwError('EINVAL', 'Invalid argument');
       }
+      assertLive(ctx);
       return paths.map((path) => grant(ctx, path));
     },
 
@@ -88,6 +94,7 @@ export function dialogHandlers(deps: Deps): Partial<Record<keyof MethodMap, Hand
       if (dir.kind !== 'dir') throw new EwError('EINVAL', 'Invalid argument');
       const existing = await fs.stat(path);
       if (existing?.kind === 'dir') throw new EwError('EINVAL', 'Invalid argument');
+      assertLive(ctx);
       if (existing) {
         const answer = await dialogs.message({
           title: 'Confirm Save As',
@@ -99,6 +106,7 @@ export function dialogHandlers(deps: Deps): Partial<Record<keyof MethodMap, Hand
           instanceId: ctx.instance.instanceId,
         });
         if (answer !== 'Yes') return null;
+        assertLive(ctx);
       }
       return grant(ctx, path);
     },

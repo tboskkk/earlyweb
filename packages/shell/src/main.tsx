@@ -61,6 +61,7 @@ async function boot() {
         dialogs,
         grants,
         fs,
+        isLive: (id) => lazy.launcher?.instances.peek().has(id) ?? false,
         onGrant: (id, ref) => lazy.launcher?.setLaunchFile(id, ref),
       }),
       ...themeHandlers(() => glass),

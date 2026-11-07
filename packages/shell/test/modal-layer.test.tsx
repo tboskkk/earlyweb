@@ -30,7 +30,10 @@ async function mount() {
 }
 const flush = () => act(() => new Promise<void>((r) => setTimeout(r, 20)));
 // only performance is faked, so real timers drive preact's effect scheduling
-const settle = flush;
+const settle = async () => {
+  await flush();
+  await flush();
+};
 const key = (el: Element, k: string, init: KeyboardEventInit = {}) =>
   act(() => {
     el.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...init }));
@@ -153,4 +156,81 @@ test('Open: Enter on a selected folder navigates into it; files are what get ret
   await act(() => file?.click());
   await key(root.querySelector('.ew-file-list') as Element, 'Enter');
   expect(await p).toEqual(['/home/user/Pictures/p.png']);
+});
+
+const input = (el: HTMLInputElement, value: string) =>
+  act(() => {
+    el.value = value;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+
+test('guard exemption: Enter in an untouched filename box is ignored at 100 ms, confirms at 500 ms', async () => {
+  const { dialogs } = await mount();
+  const p = dialogs.saveFile({ title: 't', suggestedName: 'a.txt' });
+  await settle();
+  const el = root.querySelector('input') as HTMLInputElement;
+  vi.advanceTimersByTime(100);
+  await key(el, 'Enter');
+  expect(dialogs.active.value).not.toBeNull();
+  vi.advanceTimersByTime(400);
+  await key(el, 'Enter');
+  expect(await p).toBe('/home/user/Documents/a.txt');
+});
+
+test('guard exemption: after the user edits the filename, Enter confirms immediately', async () => {
+  const { dialogs } = await mount();
+  const p = dialogs.saveFile({ title: 't', suggestedName: 'a.txt' });
+  await settle();
+  const el = root.querySelector('input') as HTMLInputElement;
+  vi.advanceTimersByTime(100);
+  await input(el, 'hello');
+  await key(el, 'Enter');
+  expect(await p).toBe('/home/user/Documents/hello');
+});
+
+test('guard exemption is only for the input: a button click at 100 ms is still ignored', async () => {
+  const { dialogs } = await mount();
+  void dialogs.saveFile({ title: 't', suggestedName: 'a.txt' });
+  await settle();
+  const el = root.querySelector('input') as HTMLInputElement;
+  vi.advanceTimersByTime(100);
+  await input(el, 'hello');
+  await act(() => (root.querySelector('.ew-file-bottom button') as HTMLButtonElement).click());
+  expect(dialogs.active.value).not.toBeNull();
+});
+
+test('double-click on a file row is gated: ignored at 100 ms, resolves at 500 ms', async () => {
+  const { dialogs, fs } = await mount();
+  await fs.write('/home/user/Documents/f.txt', new Blob(['x']));
+  const p = dialogs.openFile({ title: 't' });
+  await settle();
+  const row = () =>
+    (Array.from(root.querySelectorAll('.ew-file-row')) as HTMLElement[]).find(
+      (r) => r.textContent === 'f.txt',
+    );
+  const dbl = () =>
+    act(() => {
+      row()?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+    });
+  vi.advanceTimersByTime(100);
+  await dbl();
+  expect(dialogs.active.value).not.toBeNull();
+  vi.advanceTimersByTime(400);
+  await dbl();
+  expect(await p).toEqual(['/home/user/Documents/f.txt']);
+});
+
+test('Save: double-clicking an existing file uses the clicked name, not stale state (once armed)', async () => {
+  const { dialogs, fs } = await mount();
+  await fs.write('/home/user/Documents/f.txt', new Blob(['x']));
+  const p = dialogs.saveFile({ title: 't', suggestedName: 'other.txt' });
+  await settle();
+  vi.advanceTimersByTime(CONFIRM_GUARD_MS + 100);
+  const row = (Array.from(root.querySelectorAll('.ew-file-row')) as HTMLElement[]).find(
+    (r) => r.textContent === 'f.txt',
+  );
+  await act(() => {
+    row?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+  });
+  expect(await p).toBe('/home/user/Documents/f.txt');
 });

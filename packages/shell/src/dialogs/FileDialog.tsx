@@ -1,7 +1,7 @@
 import type { FsBackend, FsStat } from '@earlyweb/backends';
 import { dirname, joinPath } from '@earlyweb/backends';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { DEFAULT_DIR, type OpenRequest, type SaveRequest } from './dialog-service.ts';
+import { armed, DEFAULT_DIR, type OpenRequest, type SaveRequest } from './dialog-service.ts';
 import { safeExts, validateSaveName } from './save-validation.ts';
 
 const ROOT = '/home/user';
@@ -116,9 +116,12 @@ export function FileDialog({ req, fs }: { req: OpenRequest | SaveRequest; fs: Fs
     .filter((e) => e.kind === 'file' && matches(e.name, filter?.extensions))
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  const confirm = (override?: string[]) => {
+  // Single gate for every resolve path: nothing confirms during the guard window,
+  // except Enter in a filename box the user has already edited.
+  const confirm = (override?: string[], editedEnter = false, nameOverride?: string) => {
+    if (!armed(req) && !editedEnter) return;
     if (req.kind === 'save') {
-      const r = validateSaveName(name, activeFilters);
+      const r = validateSaveName(nameOverride ?? name, activeFilters);
       if (!r.ok) return setError(r.error);
       const target = joinPath(cwd, r.name);
       // The grant must land exactly in the folder the user is browsing.
@@ -157,9 +160,10 @@ export function FileDialog({ req, fs }: { req: OpenRequest | SaveRequest; fs: Fs
 
   const dbl = (e: FsStat) => {
     if (e.kind === 'dir') setCwd(e.path);
+    else if (!armed(req)) return;
     else if (req.kind === 'save') {
       setName(e.name);
-      confirm();
+      confirm(undefined, false, e.name); // setName is async: pass the clicked name explicitly
     } else confirm([e.path]);
   };
 
@@ -171,7 +175,7 @@ export function FileDialog({ req, fs }: { req: OpenRequest | SaveRequest; fs: Fs
         const t = ev.target as HTMLElement;
         if (ev.key === 'Enter' && t.tagName !== 'BUTTON' && t.tagName !== 'SELECT') {
           ev.preventDefault();
-          confirm();
+          confirm(undefined, t.dataset.edited === '1');
         }
       }}
     >
@@ -237,6 +241,8 @@ export function FileDialog({ req, fs }: { req: OpenRequest | SaveRequest; fs: Fs
             value={name}
             maxLength={300}
             onInput={(e) => {
+              // set synchronously so an immediately following Enter sees it
+              (e.target as HTMLInputElement).dataset.edited = '1';
               setName((e.target as HTMLInputElement).value);
               setError('');
             }}

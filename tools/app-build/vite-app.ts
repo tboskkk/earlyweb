@@ -35,6 +35,6 @@ export function defineAppConfig(appDir: string): UserConfig {
     root: dir,
     base: './',
     plugins: [emitAssets],
-    build: { outDir, emptyOutDir: true },
+    build: { outDir, emptyOutDir: true, target: 'esnext' },
   };
 }

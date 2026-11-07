@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/<org>/earlyweb/main/packages/protocol/manifest-1.schema.json",
+  "manifestVersion": 1,
+  "id": "org.earlyweb.notepad",
+  "name": "Notepad",
+  "version": "0.1.0",
+  "description": "A plain text editor.",
+  "author": { "name": "EarlyWeb", "url": "https://github.com/earlyweb" },
+  "license": "MIT",
+  "sdk": "^0.1.0",
+  "entry": "index.html",
+  "icons": { "16": "icons/16.svg", "32": "icons/32.svg", "48": "icons/48.svg" },
+  "window": {
+    "width": 640,
+    "height": 480,
+    "minWidth": 240,
+    "minHeight": 160,
+    "resizable": true,
+    "singleInstance": false
+  },
+  "permissions": ["fs.dialog", "notifications"],
+  "network": [],
+  "fileHandlers": [{ "extensions": [".txt", ".log", ".md", ".ini"], "mime": ["text/plain"] }],
+  "category": "accessories"
+}

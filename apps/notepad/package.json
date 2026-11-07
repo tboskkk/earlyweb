@@ -1,0 +1,18 @@
+{
+  "name": "@earlyweb/app-notepad",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@earlyweb/sdk": "workspace:*",
+    "@earlyweb/ui-kit": "workspace:*"
+  },
+  "devDependencies": {
+    "@earlyweb/app-build": "workspace:*",
+    "vite": "^8.3.6"
+  }
+}

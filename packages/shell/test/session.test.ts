@@ -196,3 +196,47 @@ test('snapshot: z order, restoreRect for maximized, current launch', () => {
   expect(snap[1]?.state).toBe('minimized');
   expect(snap[2]?.launch.file).toEqual({ id: 'g2', name: 'Hello 2006' });
 });
+
+test('tampered rects: invalid records dropped on load, valid sizes kept', async () => {
+  const kv = createMemoryKv();
+  const bad = (rect: object) => ({ ...rec('x'), rect });
+  await kv.set('session', [
+    bad({ x: 0, y: 0, w: -5, h: 10 }),
+    bad({ x: 0, y: 0, w: 0, h: 10 }),
+    bad({ x: 0, y: 0, w: Number.POSITIVE_INFINITY, h: 10 }),
+    bad({ x: 0, y: 0, w: 1e12, h: 10 }),
+    bad({ x: 0, y: 0, w: Number.NaN, h: 10 }),
+    bad({ x: 1e9, y: 0, w: 10, h: 10 }),
+    { ...rec('x'), launch: { args: Array(17).fill('a') } },
+    { ...rec('x'), launch: { args: ['a'.repeat(1025)] } },
+    { ...rec('x'), launch: { args: [], file: { id: 'g', name: 'n'.repeat(256) } } },
+    bad({ x: -100000, y: 100000, w: 1, h: 10000 }),
+  ]);
+  const got = await loadSession(kv);
+  expect(got).toHaveLength(1);
+  expect(got[0]?.rect).toEqual({ x: -100000, y: 100000, w: 1, h: 10000 });
+});
+
+test('loadSession bounds the stored array to 100 before validating', async () => {
+  const kv = createMemoryKv();
+  await kv.set(
+    'session',
+    Array.from({ length: 150 }, () => rec('a')),
+  );
+  expect(await loadSession(kv)).toHaveLength(100);
+});
+
+test('restore clamps tiny and huge sizes to manifest min and the 10000 cap', () => {
+  const { store, launch, launcher } = fakes();
+  const catalog = signal([
+    { manifest: { id: 'a', window: { minWidth: 120, minHeight: 90 } } } as unknown as CatalogEntry,
+  ]);
+  restoreSession(
+    [rec('a', { rect: { x: 0, y: 0, w: 1, h: 1 } }), rec('a', { rect: { x: 0, y: 0, w: 99999, h: 99999 } })],
+    launcher,
+    catalog,
+    store,
+  );
+  expect(launch).toHaveBeenNthCalledWith(1, 'a', { args: [] }, { x: 0, y: 0, w: 120, h: 90 });
+  expect(launch).toHaveBeenNthCalledWith(2, 'a', { args: [] }, { x: 0, y: 0, w: 10000, h: 10000 });
+});

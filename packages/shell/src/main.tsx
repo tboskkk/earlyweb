@@ -39,14 +39,22 @@ async function boot() {
   const grants = await createGrantTable(kv);
   const fsService = createFsService(fs, grants);
   const dialogs = createDialogService();
-  if (import.meta.env.DEV) (window as unknown as { __ew?: unknown }).__ew = { dialogs };
+  // saver is defined below; the hook is only invoked later.
+  if (import.meta.env.DEV)
+    (window as unknown as { __ew?: unknown }).__ew = { dialogs, sessionIdle: () => saver.idle() };
 
   const catalog = signal<CatalogEntry[]>([]);
+  // false when the catalog failed to load: then saving stays disabled so the stored
+  // session is not overwritten by the (empty) restored state.
   const catalogReady = loadCatalog(APP_ORIGIN).then(
     (entries) => {
       catalog.value = entries;
+      return true;
     },
-    (err) => console.error('catalog load failed', err),
+    (err) => {
+      console.error('catalog load failed', err);
+      return false;
+    },
   );
 
   // The launcher needs the broker and handshake, whose handlers need the launcher.
@@ -119,7 +127,8 @@ async function boot() {
   // churn (drag/resize); save immediately when the set of windows or a launch file
   // changes, and when the page is hidden.
   const saver = createSessionSaver({
-    save: () => void saveSession(kv, snapshot(store, launcher.instances)).catch(() => {}),
+    save: () => saveSession(kv, snapshot(store, launcher.instances)),
+    onError: (err) => console.error('session save failed', err),
     debounceMs: 500,
   });
   let lastKey = '';
@@ -139,13 +148,17 @@ async function boot() {
   });
   window.addEventListener('pagehide', () => saver.flushNow());
   void catalogReady
-    .then(() => loadSession(kv))
-    .then((records) => restoreSession(records, launcher, catalog, store))
-    .catch((err) => console.error('session restore failed', err))
-    .finally(() => {
+    .then(async (ok) => {
+      if (!ok) return; // catalog failed: leave the stored session untouched, never enable saving
+      try {
+        restoreSession(await loadSession(kv), launcher, catalog, store);
+      } catch (err) {
+        console.error('session restore failed', err);
+      }
       lastKey = structureKey();
       saver.enable();
-    });
+    })
+    .catch((err) => console.error('session boot failed', err));
 
   function Root() {
     return (

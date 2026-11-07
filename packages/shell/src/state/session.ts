@@ -1,5 +1,5 @@
 import type { Kv } from '@earlyweb/backends';
-import { type LaunchArgs, LaunchArgsSchema } from '@earlyweb/protocol';
+import type { LaunchArgs } from '@earlyweb/protocol';
 import type { Signal } from '@preact/signals';
 import * as v from 'valibot';
 import type { InstanceEntry, Launcher } from '../host/launcher.ts';
@@ -9,14 +9,29 @@ import type { Rect, WindowState, WindowStore } from './windows.ts';
 const KEY = 'session';
 /** Defensive cap on windows restored from a (possibly tampered) stored session. */
 export const MAX_RESTORE = 20;
+/** Only this many stored records are even looked at. */
+const MAX_STORED = 100;
+const MAX_SIZE = 10000;
+const MAX_POS = 100000;
+
+const finite = (lo: number, hi: number) => v.pipe(v.number(), v.finite(), v.minValue(lo), v.maxValue(hi));
+const Launch = v.object({
+  file: v.optional(v.object({ id: v.string(), name: v.pipe(v.string(), v.maxLength(255)) })),
+  args: v.pipe(v.array(v.pipe(v.string(), v.maxLength(1024))), v.maxLength(16)),
+});
 
 export type SessionRecord = { appId: string; rect: Rect; state: WindowState['state']; launch: LaunchArgs };
 
 const RecordSchema = v.object({
   appId: v.string(),
-  rect: v.object({ x: v.number(), y: v.number(), w: v.number(), h: v.number() }),
+  rect: v.object({
+    x: finite(-MAX_POS, MAX_POS),
+    y: finite(-MAX_POS, MAX_POS),
+    w: finite(1, MAX_SIZE),
+    h: finite(1, MAX_SIZE),
+  }),
   state: v.picklist(['normal', 'minimized', 'maximized']),
-  launch: LaunchArgsSchema,
+  launch: Launch,
 });
 
 /**
@@ -34,6 +49,7 @@ export function snapshot(store: WindowStore, instances: Signal<Map<string, Insta
     out.push({
       appId: w.appId,
       rect: { x: r.x, y: r.y, w: r.w, h: r.h },
+      // A window minimized from maximized records 'minimized' (and its restoreRect).
       state: w.state,
       launch: e.instance.launch,
     });
@@ -49,7 +65,7 @@ export async function saveSession(kv: Kv, records: SessionRecord[]): Promise<voi
 export async function loadSession(kv: Kv): Promise<SessionRecord[]> {
   const raw = await kv.get<unknown>(KEY);
   if (!Array.isArray(raw)) return [];
-  return raw.flatMap((r) => {
+  return raw.slice(0, MAX_STORED).flatMap((r) => {
     const p = v.safeParse(RecordSchema, r);
     return p.success ? [p.output as SessionRecord] : [];
   });
@@ -68,13 +84,19 @@ export function restoreSession(
   catalog: Signal<CatalogEntry[]>,
   store?: WindowStore,
 ): void {
-  const known = new Set(catalog.value.map((c) => c.manifest.id));
+  const known = new Map(catalog.value.map((c) => [c.manifest.id, c.manifest.window] as const));
   let n = 0;
   for (const r of records) {
     if (n >= MAX_RESTORE) break;
+    const win = known.get(r.appId);
     if (!known.has(r.appId)) continue;
     n++;
-    const instanceId = launcher.launch(r.appId, r.launch, r.rect);
+    const instanceId = launcher.launch(r.appId, r.launch, {
+      ...r.rect,
+      // store.open clamps position only; bound the size here (tampered values).
+      w: Math.min(Math.max(r.rect.w, win?.minWidth ?? 1), MAX_SIZE),
+      h: Math.min(Math.max(r.rect.h, win?.minHeight ?? 1), MAX_SIZE),
+    });
     if (!store || r.state === 'normal') continue;
     const windowId = launcher.instances.peek().get(instanceId)?.instance.windowId;
     if (!windowId) continue;

@@ -1,6 +1,6 @@
 import type { FsBackend } from '@earlyweb/backends';
 import { useEffect, useRef } from 'preact/hooks';
-import type { DialogRequest, DialogService } from './dialog-service.ts';
+import { CONFIRM_GUARD_MS, cancelDialog, type DialogRequest, type DialogService } from './dialog-service.ts';
 import { FileDialog } from './FileDialog.tsx';
 import { MessageBox } from './MessageBox.tsx';
 
@@ -15,11 +15,9 @@ const idOf = (r: DialogRequest) => {
   return id;
 };
 
-export function cancelDialog(req: DialogRequest): void {
-  if (req.kind === 'message') {
-    req.resolve(req.buttons.includes('Cancel') ? 'Cancel' : (req.buttons[req.buttons.length - 1] as string));
-  } else req.resolve(null);
-}
+const armed = (r: DialogRequest) => performance.now() - r.activatedAt >= CONFIRM_GUARD_MS;
+
+export { cancelDialog };
 
 export function ModalLayer({ dialogs, fs }: { dialogs: DialogService; fs: FsBackend }) {
   const req = dialogs.active.value;
@@ -29,7 +27,8 @@ export function ModalLayer({ dialogs, fs }: { dialogs: DialogService; fs: FsBack
   useEffect(() => {
     if (!req) return;
     const el = box.current;
-    el?.focus();
+    // Child effects (filename box, default button) have already run: keep their focus.
+    if (el && !el.contains(document.activeElement)) el.focus();
     const onFocusIn = (e: FocusEvent) => {
       if (el && !el.contains(e.target as Node)) el.focus();
     };
@@ -57,6 +56,24 @@ export function ModalLayer({ dialogs, fs }: { dialogs: DialogService; fs: FsBack
         aria-label={req.title}
         tabIndex={-1}
         ref={box}
+        onKeyDownCapture={(e) => {
+          // Keystroke-jacking guard: no Enter/Space confirmation right after opening. Escape is never delayed.
+          if ((e.key === 'Enter' || e.key === ' ') && !armed(req)) {
+            if (!(e.key === ' ' && (e.target as HTMLElement).tagName === 'INPUT')) {
+              e.preventDefault();
+              e.stopPropagation();
+            }
+          }
+        }}
+        onKeyUpCapture={(e) => {
+          if (e.key === ' ' && !armed(req)) e.preventDefault();
+        }}
+        onClickCapture={(e) => {
+          if (!armed(req)) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }}
         onKeyDown={(e) => {
           if (e.key === 'Escape') {
             e.preventDefault();

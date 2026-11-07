@@ -1,7 +1,7 @@
 import '@earlyweb/themes/glass/chrome.css';
 import { createIdbFs, createIdbKv, ensureHome } from '@earlyweb/backends';
 import { applyTheme, glass } from '@earlyweb/themes';
-import { signal } from '@preact/signals';
+import { effect, signal } from '@preact/signals';
 import { render } from 'preact';
 import { createBroker } from './broker/broker.ts';
 import { appHandlers } from './broker/methods/app.ts';
@@ -83,6 +83,15 @@ async function boot() {
   });
   const launcher = createLauncher({ store, catalog, handshake, broker });
   lazy.launcher = launcher;
+
+  // Instead of widening the launcher interface: when an instance disappears from the
+  // launcher's signal (close or end task), drop its pending trusted dialogs.
+  let known = new Set<string>();
+  effect(() => {
+    const now = new Set(launcher.instances.value.keys());
+    for (const id of known) if (!now.has(id)) dialogs.cancelFor(id);
+    known = now;
+  });
 
   const instanceOfWindow = (windowId: string) => {
     for (const e of launcher.instances.peek().values()) if (e.instance.windowId === windowId) return e;

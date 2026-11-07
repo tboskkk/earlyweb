@@ -4,6 +4,7 @@ import { EwError, type Manifest } from '@earlyweb/protocol';
 import { expect, test, vi } from 'vitest';
 import { dialogHandlers } from '../src/broker/methods/dialog.ts';
 import type { DialogService } from '../src/dialogs/dialog-service.ts';
+import { validateSaveName } from '../src/dialogs/save-validation.ts';
 import { createGrantTable } from '../src/services/grants.ts';
 
 let n = 0;
@@ -31,8 +32,9 @@ async function setup() {
     message: ReturnType<typeof vi.fn>;
   };
   const onGrant = vi.fn();
+  const issue = vi.spyOn(grants, 'issue');
   const h = dialogHandlers({ dialogs, grants, fs, onGrant });
-  return { fs, grants, dialogs, onGrant, h };
+  return { fs, grants, dialogs, onGrant, issue, h };
 }
 
 const code = async (p: Promise<unknown>) => {
@@ -45,7 +47,8 @@ const code = async (p: Promise<unknown>) => {
 };
 
 test('dialog.open issues grants for the picked paths, for this app only', async () => {
-  const { h, dialogs, grants, onGrant } = await setup();
+  const { h, dialogs, grants, onGrant, fs } = await setup();
+  await fs.write('/home/user/Documents/a.txt', new Blob(['x']));
   dialogs.openFile.mockResolvedValue(['/home/user/Documents/a.txt']);
   const res = (await h['dialog.open']?.(ctx(), {})) as { id: string; name: string }[];
   expect(res).toEqual([{ id: expect.stringMatching(/^g_/), name: 'a.txt' }]);
@@ -57,7 +60,9 @@ test('dialog.open issues grants for the picked paths, for this app only', async 
 });
 
 test('onGrant fires for each picked ref, in order', async () => {
-  const { h, dialogs, onGrant } = await setup();
+  const { h, dialogs, onGrant, fs } = await setup();
+  await fs.write('/home/user/a', new Blob(['x']));
+  await fs.write('/home/user/b', new Blob(['x']));
   dialogs.openFile.mockResolvedValue(['/home/user/a', '/home/user/b']);
   const res = (await h['dialog.open']?.(ctx(), { multiple: true })) as unknown[];
   expect(onGrant.mock.calls.map((c) => c[1])).toEqual(res);
@@ -82,7 +87,7 @@ test('dialog.save on a new path grants without asking', async () => {
 });
 
 test('dialog.save over an existing file asks first; No -> null, Yes -> FileRef', async () => {
-  const { h, dialogs, fs, onGrant } = await setup();
+  const { h, dialogs, fs, onGrant, issue } = await setup();
   await fs.write('/home/user/Documents/a.txt', new Blob(['x']));
   dialogs.saveFile.mockResolvedValue('/home/user/Documents/a.txt');
   dialogs.message.mockResolvedValue('No');
@@ -95,24 +100,28 @@ test('dialog.save over an existing file asks first; No -> null, Yes -> FileRef',
     }),
   );
   expect(onGrant).not.toHaveBeenCalled();
+  expect(issue).not.toHaveBeenCalled();
+  expect(dialogs.message).toHaveBeenCalledWith(expect.objectContaining({ defaultButton: 'No' }));
   dialogs.message.mockResolvedValue('Yes');
-  const res = (await h['dialog.save']?.(ctx(), {})) as { id: string };
+  const res = (await h['dialog.save']?.(ctx(), {})) as { id: string; name: string };
   expect(res.id).toMatch(/^g_/);
+  expect(res.name).toBe('a.txt');
   expect(onGrant).toHaveBeenCalledTimes(1);
 });
 
 test('dialog.save refuses to replace a directory or write under a missing dir', async () => {
-  const { h, dialogs, grants } = await setup();
+  const { h, dialogs, onGrant, issue } = await setup();
   dialogs.saveFile.mockResolvedValue('/home/user/Documents');
   expect(await code(h['dialog.save']?.(ctx(), {}) as Promise<unknown>)).toBe('EINVAL');
   dialogs.saveFile.mockResolvedValue('/home/user/nope/a.txt');
   expect(await code(h['dialog.save']?.(ctx(), {}) as Promise<unknown>)).toBe('ENOENT');
   expect(dialogs.message).not.toHaveBeenCalled();
-  expect(grants).toBeDefined();
+  expect(issue).not.toHaveBeenCalled();
+  expect(onGrant).not.toHaveBeenCalled();
 });
 
 test('defensive re-validation: a buggy dialog UI cannot get a grant for a weird name', async () => {
-  const { h, dialogs, onGrant } = await setup();
+  const { h, dialogs, onGrant, issue } = await setup();
   for (const bad of [
     `/home/user/Documents/${'a'.repeat(256)}`,
     '/home/user/Documents/',
@@ -120,11 +129,59 @@ test('defensive re-validation: a buggy dialog UI cannot get a grant for a weird 
     '/home/user/Documents/./a.txt',
     '/home/user/Documents/a\u0000b',
     'relative.txt',
+    '/home/x.txt',
+    '/home/user',
+    '/etc/passwd',
   ]) {
     dialogs.saveFile.mockResolvedValue(bad);
     expect(await code(h['dialog.save']?.(ctx(), {}) as Promise<unknown>)).toBe('EINVAL');
   }
   expect(onGrant).not.toHaveBeenCalled();
+  expect(issue).not.toHaveBeenCalled();
+});
+
+test('hostile filter extension cannot escape the browsed folder (validation and handler)', async () => {
+  const { h, dialogs, onGrant, issue } = await setup();
+  const hostile = [{ name: 'x', extensions: ['/../../../x.txt'] }];
+  // what the dialog would now produce for "notes": the unsafe extension is ignored
+  expect(validateSaveName('notes', hostile)).toEqual({ ok: true, name: 'notes' });
+  // a buggy/old UI that did append it yields a path that normalizes outside the folder
+  dialogs.saveFile.mockResolvedValue('/home/x.txt');
+  expect(await code(h['dialog.save']?.(ctx(), { filters: hostile }) as Promise<unknown>)).toBe('EINVAL');
+  dialogs.saveFile.mockResolvedValue('/home/user/Documents/notes./../../../x.txt');
+  expect(await code(h['dialog.save']?.(ctx(), { filters: hostile }) as Promise<unknown>)).toBe('EINVAL');
+  expect(issue).not.toHaveBeenCalled();
+  expect(onGrant).not.toHaveBeenCalled();
+});
+
+test('dialog.open only grants files: a directory pick is EINVAL and nothing is granted', async () => {
+  const { h, dialogs, fs, onGrant, issue } = await setup();
+  await fs.write('/home/user/Documents/ok.txt', new Blob(['x']));
+  dialogs.openFile.mockResolvedValue(['/home/user/Documents/ok.txt', '/home/user/Documents']);
+  expect(await code(h['dialog.open']?.(ctx(), {}) as Promise<unknown>)).toBe('EINVAL');
+  dialogs.openFile.mockResolvedValue(['/home/user/Documents/missing.txt']);
+  expect(await code(h['dialog.open']?.(ctx(), {}) as Promise<unknown>)).toBe('EINVAL');
+  dialogs.openFile.mockResolvedValue(['/etc/passwd']);
+  expect(await code(h['dialog.open']?.(ctx(), {}) as Promise<unknown>)).toBe('EINVAL');
+  expect(issue).not.toHaveBeenCalled();
+  expect(onGrant).not.toHaveBeenCalled();
+});
+
+test('dialogs are attributed to the requesting instance', async () => {
+  const { h, dialogs } = await setup();
+  dialogs.message.mockResolvedValue('OK');
+  await h['dialog.message']?.(ctx(), { title: 't', text: 'x' });
+  expect(dialogs.message).toHaveBeenCalledWith(expect.objectContaining({ instanceId: 'inst-org.x.app' }));
+});
+
+test('dialog.message text: control and bidi stripped (newline/tab kept), capped at 2000', async () => {
+  const { h, dialogs } = await setup();
+  dialogs.message.mockResolvedValue('OK');
+  await h['dialog.message']?.(ctx(), { title: 't', text: 'a\u0007b\u202Ec\nd\te' });
+  expect(dialogs.message).toHaveBeenLastCalledWith(expect.objectContaining({ text: 'abc\nd\te' }));
+  await h['dialog.message']?.(ctx(), { title: 't', text: 'z'.repeat(5000) });
+  const sent = dialogs.message.mock.calls.at(-1)?.[0].text as string;
+  expect(sent.length).toBeLessThanOrEqual(2000);
 });
 
 test('dialog.message defaults buttons to OK and returns the clicked label', async () => {

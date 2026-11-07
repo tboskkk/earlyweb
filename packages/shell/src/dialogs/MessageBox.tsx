@@ -33,8 +33,9 @@ export function DialogIconShape({ icon }: { icon: DialogIcon }) {
 }
 
 export function MessageBox({ req }: { req: MessageRequest }) {
-  const first = useRef<HTMLButtonElement>(null);
-  useEffect(() => first.current?.focus(), []);
+  const def = useRef<HTMLButtonElement>(null);
+  const defIdx = Math.max(0, req.buttons.indexOf(req.defaultButton));
+  useEffect(() => def.current?.focus(), []);
   return (
     <div class="ew-dlg-body ew-msg">
       <DialogIconShape icon={req.icon} />
@@ -45,7 +46,7 @@ export function MessageBox({ req }: { req: MessageRequest }) {
             key={i}
             type="button"
             class="ew-btn"
-            ref={i === 0 ? first : undefined}
+            ref={i === defIdx ? def : undefined}
             onClick={() => req.resolve(label)}
           >
             {label}

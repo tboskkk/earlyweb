@@ -1,7 +1,7 @@
 import type { FsBackend } from '@earlyweb/backends';
-import { basename, dirname, normalizePath } from '@earlyweb/backends';
+import { basename, dirname, isWithin, normalizePath } from '@earlyweb/backends';
 import { EwError, type FileRef, type MethodMap } from '@earlyweb/protocol';
-import { type DialogService, sanitizeLabel } from '../../dialogs/dialog-service.ts';
+import { type DialogService, sanitizeLabel, sanitizeText } from '../../dialogs/dialog-service.ts';
 import { validateSaveName } from '../../dialogs/save-validation.ts';
 import type { GrantTable } from '../../services/grants.ts';
 import type { CallContext, Handler } from '../broker.ts';
@@ -18,6 +18,8 @@ type Deps = {
 
 const appName = (ctx: CallContext) => ctx.instance.manifest.name || ctx.instance.appId;
 
+const HOME = '/home/user';
+
 // Paths come from the trusted dialog, but a buggy UI must never mint a grant for a weird path.
 function strictPath(p: string): string {
   let n: string;
@@ -26,7 +28,7 @@ function strictPath(p: string): string {
   } catch {
     throw new EwError('EINVAL', 'Invalid argument');
   }
-  if (n !== p || n === '/') throw new EwError('EINVAL', 'Invalid argument');
+  if (n !== p || !isWithin(n, HOME) || n === HOME) throw new EwError('EINVAL', 'Invalid argument');
   return n;
 }
 
@@ -48,9 +50,15 @@ export function dialogHandlers(deps: Deps): Partial<Record<keyof MethodMap, Hand
         multiple: p.multiple,
         title: 'Open',
         appName: appName(ctx),
+        instanceId: ctx.instance.instanceId,
       });
       if (!picked) return null;
       const paths = picked.map(strictPath);
+      // Only files are ever granted by Open; check every pick before issuing any grant.
+      for (const path of paths) {
+        const st = await fs.stat(path);
+        if (st?.kind !== 'file') throw new EwError('EINVAL', 'Invalid argument');
+      }
       return paths.map((path) => grant(ctx, path));
     },
 
@@ -63,6 +71,7 @@ export function dialogHandlers(deps: Deps): Partial<Record<keyof MethodMap, Hand
         filters: p.filters,
         title: 'Save As',
         appName: appName(ctx),
+        instanceId: ctx.instance.instanceId,
       });
       if (!chosen) return null;
       const path = strictPath(chosen);
@@ -70,6 +79,10 @@ export function dialogHandlers(deps: Deps): Partial<Record<keyof MethodMap, Hand
       const v = validateSaveName(name, p.filters);
       if (!v.ok || v.name !== name) throw new EwError('EINVAL', 'Invalid argument');
 
+      // The final path must sit directly in a folder under home and its name must be one segment.
+      if (dirname(path) !== path.slice(0, path.length - name.length - 1) || name.includes('/')) {
+        throw new EwError('EINVAL', 'Invalid argument');
+      }
       const dir = await fs.stat(dirname(path));
       if (!dir) throw new EwError('ENOENT', 'No such file or directory');
       if (dir.kind !== 'dir') throw new EwError('EINVAL', 'Invalid argument');
@@ -81,7 +94,9 @@ export function dialogHandlers(deps: Deps): Partial<Record<keyof MethodMap, Hand
           text: `${name} already exists.\nDo you want to replace it?`,
           icon: 'warning',
           buttons: ['Yes', 'No'],
+          defaultButton: 'No',
           appName: appName(ctx),
+          instanceId: ctx.instance.instanceId,
         });
         if (answer !== 'Yes') return null;
       }
@@ -101,10 +116,11 @@ export function dialogHandlers(deps: Deps): Partial<Record<keyof MethodMap, Hand
       const labels = original.map((b) => sanitizeLabel(b, 40) || 'OK');
       const clicked = await dialogs.message({
         title: sanitizeLabel(p.title),
-        text: p.text,
+        text: sanitizeText(p.text),
         icon: p.icon,
         buttons: labels,
         appName: appName(ctx),
+        instanceId: ctx.instance.instanceId,
       });
       const i = labels.indexOf(clicked);
       if (i < 0) throw new EwError('EINVAL', 'Invalid argument');

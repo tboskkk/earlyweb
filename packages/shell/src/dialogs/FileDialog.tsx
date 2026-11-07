@@ -2,14 +2,15 @@ import type { FsBackend, FsStat } from '@earlyweb/backends';
 import { dirname, joinPath } from '@earlyweb/backends';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { DEFAULT_DIR, type OpenRequest, type SaveRequest } from './dialog-service.ts';
-import { validateSaveName } from './save-validation.ts';
+import { safeExts, validateSaveName } from './save-validation.ts';
 
 const ROOT = '/home/user';
 
 function matches(name: string, exts: string[] | undefined): boolean {
-  if (!exts || exts.length === 0 || exts.some((e) => e === '*' || e === '.*')) return true;
+  const safe = safeExts(exts); // unsafe app-supplied extensions are ignored
+  if (safe.length === 0) return true;
   const lower = name.toLowerCase();
-  return exts.some((e) => lower.endsWith((e.startsWith('.') ? e : `.${e}`).toLowerCase()));
+  return safe.some((e) => lower.endsWith(e.toLowerCase()));
 }
 
 function Tree({
@@ -119,11 +120,22 @@ export function FileDialog({ req, fs }: { req: OpenRequest | SaveRequest; fs: Fs
     if (req.kind === 'save') {
       const r = validateSaveName(name, activeFilters);
       if (!r.ok) return setError(r.error);
-      return req.resolve(joinPath(cwd, r.name));
+      const target = joinPath(cwd, r.name);
+      // The grant must land exactly in the folder the user is browsing.
+      if (dirname(target) !== cwd) return setError('That is not a valid file name.');
+      return req.resolve(target);
     }
     const sel = override ?? selected;
     if (sel.length === 0) return;
-    req.resolve(req.multiple ? sel : sel.slice(0, 1));
+    const picked = entries.filter((e) => sel.includes(e.path));
+    const pickedFiles = picked.filter((e) => e.kind === 'file').map((e) => e.path);
+    if (pickedFiles.length === 0) {
+      // Open/Enter on a folder navigates into it; only files are ever returned.
+      const dir = picked.find((e) => e.kind === 'dir');
+      if (dir) setCwd(dir.path);
+      return;
+    }
+    req.resolve(req.multiple ? pickedFiles : pickedFiles.slice(0, 1));
   };
 
   const listKeys = (ev: KeyboardEvent) => {

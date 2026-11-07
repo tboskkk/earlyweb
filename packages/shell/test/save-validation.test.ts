@@ -41,3 +41,16 @@ test('255 chars is fine, and the appended extension counts toward the limit', ()
   expect(validateSaveName('a'.repeat(255)).ok).toBe(true);
   expect(validateSaveName('a'.repeat(253), txt).ok).toBe(false);
 });
+
+test('hostile or unsafe filter extensions are ignored', () => {
+  for (const ext of ['/../../../x.txt', '.t/xt', 'a b', 'x'.repeat(17), '.', '..', '\\x', '.t\u0000']) {
+    expect(validateSaveName('notes', [{ name: 'h', extensions: [ext] }])).toEqual({
+      ok: true,
+      name: 'notes',
+    });
+  }
+  expect(validateSaveName('notes', [{ name: 'h', extensions: ['/../x', '.md'] }])).toEqual({
+    ok: true,
+    name: 'notes.md',
+  });
+});

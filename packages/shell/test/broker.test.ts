@@ -180,7 +180,7 @@ test('garbage counts toward the rate limit', async () => {
 });
 
 test('a flood produces a bounded number of replies and the limit resets after the window', async () => {
-  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.useFakeTimers({ toFake: ['performance'] });
   const handler = vi.fn(async () => null);
   const s = track(setup({ handlers: { 'window.focus': handler }, rate: { max: 5, windowMs: 1000 } }));
   for (let id = 1; id <= 100; id++)
@@ -208,7 +208,7 @@ test('request(ping) resolves true when the fake app answers', async () => {
 });
 
 test('an unanswered request rejects ECANCELED after its timeout', async () => {
-  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
   const s = track(setup());
   const p = s.conn.request('ping', undefined, 5000);
   const assertion = expect(p).rejects.toMatchObject({ code: 'ECANCELED', message: 'timeout' });

@@ -1,3 +1,5 @@
+import { useCallback, useRef } from 'preact/hooks';
+
 type Props = {
   appId: string;
   baseUrl: string;
@@ -7,6 +9,13 @@ type Props = {
 };
 
 export function AppFrame({ appId, baseUrl, entry, onWindow }: Props) {
+  const latest = useRef(onWindow);
+  latest.current = onWindow;
+  // Stable ref callback: a changing ref would fire (null, then win) on every render.
+  const setRef = useCallback(
+    (el: HTMLIFrameElement | null) => latest.current?.(el?.contentWindow ?? null),
+    [],
+  );
   return (
     <iframe
       sandbox="allow-scripts"
@@ -15,7 +24,7 @@ export function AppFrame({ appId, baseUrl, entry, onWindow }: Props) {
       title={appId}
       data-app={appId}
       src={baseUrl + entry}
-      ref={(el: HTMLIFrameElement | null) => onWindow?.(el?.contentWindow ?? null)}
+      ref={setRef}
     />
   );
 }

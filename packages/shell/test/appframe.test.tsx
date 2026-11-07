@@ -24,3 +24,31 @@ test('AppFrame renders a locked-down sandboxed iframe', () => {
   ]);
   render(null, root);
 });
+
+test('re-rendering AppFrame does not re-fire onWindow', () => {
+  const root = document.createElement('div');
+  const calls: unknown[] = [];
+  const onWindow = (w: Window | null) => calls.push(w);
+  render(
+    <AppFrame appId="a.b.c" baseUrl="http://apps.test/a.b.c/" entry="index.html" onWindow={onWindow} />,
+    root,
+  );
+  expect(calls).toHaveLength(1);
+  render(
+    <AppFrame
+      appId="a.b.c"
+      baseUrl="http://apps.test/a.b.c/"
+      entry="index.html"
+      onWindow={(w) => onWindow(w)}
+    />,
+    root,
+  );
+  render(
+    <AppFrame appId="a.b.c" baseUrl="http://apps.test/a.b.c/" entry="index.html" onWindow={onWindow} />,
+    root,
+  );
+  expect(calls).toHaveLength(1);
+  render(null, root);
+  expect(calls).toHaveLength(2);
+  expect(calls[1]).toBeNull();
+});

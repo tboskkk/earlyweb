@@ -36,16 +36,26 @@ export function createHandshake(opts: {
     if (!entry || entry.connected || !isHello(e.data) || e.data.protocol !== PROTOCOL_VERSION) return;
     entry.connected = true;
     const channel = new MessageChannel();
-    const init: InitMsg = { ew: 'init', protocol: PROTOCOL_VERSION, ...opts.makeInit(entry.instance) };
-    // The sandboxed frame has an opaque origin, so '*' is unavoidable; the
-    // message goes only to the registered frame window and carries no secrets
-    // beyond that app's own instance data.
-    (e.source as PostTarget).postMessage(init, '*', [channel.port2]);
+    try {
+      const init: InitMsg = { ew: 'init', protocol: PROTOCOL_VERSION, ...opts.makeInit(entry.instance) };
+      // The sandboxed frame has an opaque origin, so '*' is unavoidable; the
+      // message goes only to the registered frame window and carries no secrets
+      // beyond that app's own instance data.
+      (e.source as PostTarget).postMessage(init, '*', [channel.port2]);
+    } catch {
+      // never throw out of the listener; allow a later hello to retry
+      channel.port1.close();
+      channel.port2.close();
+      entry.connected = false;
+      return;
+    }
     opts.onConnect(entry.instance, channel.port1 as unknown as MessagePortLike);
   });
 
   return {
     register(frameWindow, instance) {
+      // Idempotent: re-registering the same window must not reset its connected state.
+      if (frames.get(frameWindow)?.instance === instance) return;
       frames.set(frameWindow, { instance, connected: false });
     },
     unregister(frameWindow) {

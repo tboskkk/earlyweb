@@ -107,6 +107,7 @@ export function createLauncher(deps: {
       const entry = instances.peek().get(instanceId);
       const rt = runtime.get(instanceId);
       if (!entry || !rt) return;
+      if (frameWindow === rt.frame) return; // re-render of the same frame
       if (rt.frame !== undefined) handshake.unregister(rt.frame);
       if (frameWindow == null) {
         rt.frame = undefined;
@@ -118,7 +119,8 @@ export function createLauncher(deps: {
     connect(instance, port) {
       const entry = instances.peek().get(instance.instanceId);
       const rt = runtime.get(instance.instanceId);
-      if (!entry || !rt) {
+      // Refuse unknown/ended instances and any second connection.
+      if (!entry || !rt || entry.conn) {
         port.close();
         return;
       }

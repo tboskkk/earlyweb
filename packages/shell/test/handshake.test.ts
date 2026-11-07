@@ -117,3 +117,67 @@ test("each frame only ever receives its own app's instance", () => {
   expect(onConnect.mock.calls[0]?.[0].instanceId).toBe('b');
   closePorts(onConnect);
 });
+
+test('re-registering the same window keeps its connected state: a second hello is ignored', () => {
+  const { hs, onConnect, frame, inst, send } = setup();
+  const f = frame();
+  const i = inst('a');
+  hs.register(f, i);
+  send(f, { ew: 'hello', protocol: 1 });
+  hs.register(f, i);
+  send(f, { ew: 'hello', protocol: 1 });
+  expect(onConnect).toHaveBeenCalledTimes(1);
+  expect(f.postMessage).toHaveBeenCalledTimes(1);
+  closePorts(onConnect);
+});
+
+test('the port given to onConnect is the pair of the transferred port', async () => {
+  const { hs, onConnect, frame, inst, send } = setup();
+  const f = frame();
+  hs.register(f, inst('a'));
+  send(f, { ew: 'hello', protocol: 1 });
+  const shellPort = onConnect.mock.calls[0]?.[1] as MessagePort;
+  const transferred = (f.postMessage.mock.calls[0] ?? [])[2] as MessagePort[];
+  const appPort = transferred[0] as MessagePort;
+  expect(shellPort).not.toBe(appPort);
+  const got = new Promise((r) =>
+    appPort.addEventListener('message', (e) => r((e as MessageEvent).data), { once: true }),
+  );
+  appPort.start();
+  shellPort.postMessage('ping-from-shell');
+  await expect(got).resolves.toBe('ping-from-shell');
+  const back = new Promise((r) =>
+    shellPort.addEventListener('message', (e) => r((e as MessageEvent).data), { once: true }),
+  );
+  shellPort.start();
+  appPort.postMessage('pong-from-app');
+  await expect(back).resolves.toBe('pong-from-app');
+  shellPort.close();
+  appPort.close();
+});
+
+test('makeInit throwing does not escape the listener, connects nothing, and allows a retry', () => {
+  const { hs, onConnect, makeInit, frame, inst, send } = setup();
+  const f = frame();
+  hs.register(f, inst('a'));
+  makeInit.mockImplementationOnce(() => {
+    throw new Error('boom');
+  });
+  expect(() => send(f, { ew: 'hello', protocol: 1 })).not.toThrow();
+  expect(onConnect).not.toHaveBeenCalled();
+  expect(f.postMessage).not.toHaveBeenCalled();
+  send(f, { ew: 'hello', protocol: 1 });
+  expect(onConnect).toHaveBeenCalledTimes(1);
+  closePorts(onConnect);
+});
+
+test('postMessage throwing does not escape the listener and connects nothing', () => {
+  const { hs, onConnect, frame, inst, send } = setup();
+  const f = frame();
+  f.postMessage.mockImplementationOnce(() => {
+    throw new Error('gone');
+  });
+  hs.register(f, inst('a'));
+  expect(() => send(f, { ew: 'hello', protocol: 1 })).not.toThrow();
+  expect(onConnect).not.toHaveBeenCalled();
+});

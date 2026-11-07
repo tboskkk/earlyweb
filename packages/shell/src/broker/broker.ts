@@ -98,7 +98,7 @@ export function createBroker(opts: {
 
       const onMessage = (e: { data: unknown }) => {
         if (closed) return;
-        const now = Date.now();
+        const now = performance.now();
         if (now - windowStart >= rate.windowMs) {
           windowStart = now;
           count = 0;

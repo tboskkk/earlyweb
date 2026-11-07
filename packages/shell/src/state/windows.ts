@@ -60,6 +60,8 @@ function clampPos(x: number, y: number, w: number, vp: Viewport) {
   };
 }
 
+const fill = (vp: Viewport): Rect => ({ x: 0, y: 0, w: vp.width, h: vp.height - TASKBAR_H });
+
 /**
  * The viewport effect lives for the lifetime of the store (the shell is a
  * single page whose store is never torn down), so no dispose is exposed.
@@ -85,7 +87,11 @@ export function createWindowStore(viewport: Signal<Viewport>): WindowStore {
   effect(() => {
     const vp = viewport.value;
     windows.value = windows.peek().map((w) => {
-      if (w.state === 'maximized') return { ...w, x: 0, y: 0, w: vp.width, h: vp.height - TASKBAR_H };
+      // restoreRect is set while maximized, or minimized-from-maximized.
+      if (w.restoreRect) {
+        const r = w.restoreRect;
+        return { ...w, ...fill(vp), restoreRect: { ...r, ...clampPos(r.x, r.y, r.w, vp) } };
+      }
       return { ...w, ...clampPos(w.x, w.y, w.w, vp) };
     });
   });
@@ -124,21 +130,27 @@ export function createWindowStore(viewport: Signal<Viewport>): WindowStore {
       return id;
     },
     close(id) {
+      if (!find(id)) return;
       windows.value = windows.value.filter((w) => w.id !== id);
       if (focusedId.value === id) focusedId.value = nextFocus();
     },
     focus(id) {
-      if (!find(id)) return;
+      const w = find(id);
+      if (!w) return;
+      if (w.state === 'minimized') return this.restore(id);
       patch(id, () => ({ z: ++topZ }));
       focusedId.value = id;
     },
     move(id, x, y) {
-      patch(id, (w) => clampPos(x, y, w.w, viewport.peek()));
+      // Maximized (or minimized-from-maximized) windows ignore move.
+      patch(id, (w) => (w.restoreRect ? {} : clampPos(x, y, w.w, viewport.peek())));
     },
     resize(id, rect) {
-      patch(id, (w) =>
-        w.resizable ? { ...rect, w: Math.max(rect.w, w.minW), h: Math.max(rect.h, w.minH) } : {},
-      );
+      patch(id, (w) => {
+        if (!w.resizable || w.restoreRect) return {};
+        const rw = Math.max(rect.w, w.minW);
+        return { ...clampPos(rect.x, rect.y, rw, viewport.peek()), w: rw, h: Math.max(rect.h, w.minH) };
+      });
     },
     minimize(id) {
       patch(id, () => ({ state: 'minimized' }));
@@ -147,10 +159,16 @@ export function createWindowStore(viewport: Signal<Viewport>): WindowStore {
     restore(id) {
       const w = find(id);
       if (!w) return;
-      patch(id, (cur) => ({ state: cur.restoreRect ? 'maximized' : 'normal', z: ++topZ }));
+      const vp = viewport.peek();
+      patch(id, (cur) => ({
+        ...(cur.restoreRect ? { ...fill(vp), state: 'maximized' as const } : { state: 'normal' as const }),
+        z: ++topZ,
+      }));
       focusedId.value = id;
     },
     toggleMaximize(id) {
+      // A minimized window is restored (un-minimized) first, then toggled.
+      if (find(id)?.state === 'minimized') this.restore(id);
       const vp = viewport.peek();
       patch(id, (w) => {
         if (w.state === 'maximized' && w.restoreRect) {
@@ -158,10 +176,7 @@ export function createWindowStore(viewport: Signal<Viewport>): WindowStore {
         }
         return {
           restoreRect: { x: w.x, y: w.y, w: w.w, h: w.h },
-          x: 0,
-          y: 0,
-          w: vp.width,
-          h: vp.height - TASKBAR_H,
+          ...fill(vp),
           state: 'maximized',
         };
       });

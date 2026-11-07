@@ -174,3 +174,105 @@ test('update merges a patch', () => {
   store.update(id, { title: 'new', shown: true, notResponding: true });
   expect([get(id).title, get(id).shown, get(id).notResponding]).toEqual(['new', true, true]);
 });
+
+test('un-maximize after a viewport shrink restores a reachable rect', () => {
+  const { store, viewport, get } = setup(1000, 700);
+  const id = store.open({ ...base, rect: { x: 900, y: 600 } });
+  store.toggleMaximize(id);
+  viewport.value = { width: 500, height: 300 };
+  store.toggleMaximize(id);
+  expect([get(id).x, get(id).y, get(id).w, get(id).h]).toEqual([420, 230, 300, 200]);
+});
+
+test('focus fallback after minimize uses z order, not array order', () => {
+  const { store } = setup();
+  const a = store.open(base);
+  store.open(base);
+  const c = store.open(base);
+  store.focus(a);
+  store.focus(c);
+  store.minimize(c);
+  expect(store.focusedId.value).toBe(a);
+});
+
+test('close fallback uses z order too', () => {
+  const { store } = setup();
+  const a = store.open(base);
+  store.open(base);
+  const c = store.open(base);
+  store.focus(a);
+  store.focus(c);
+  store.close(c);
+  expect(store.focusedId.value).toBe(a);
+});
+
+test('resize clamps position using the new width', () => {
+  const { store, get } = setup(1000, 700);
+  const id = store.open(base);
+  store.resize(id, { x: -5000, y: 5000, w: 400, h: 300 });
+  expect([get(id).x, get(id).y, get(id).w, get(id).h]).toEqual([
+    MIN_VISIBLE - 400,
+    700 - TASKBAR_H - TITLEBAR_H,
+    400,
+    300,
+  ]);
+});
+
+test('restoring a minimized maximized window after a shrink re-fits it', () => {
+  const { store, viewport, get } = setup(1000, 700);
+  const id = store.open({ ...base, rect: { x: 900, y: 600 } });
+  store.toggleMaximize(id);
+  store.minimize(id);
+  viewport.value = { width: 500, height: 300 };
+  store.restore(id);
+  expect([get(id).x, get(id).y, get(id).w, get(id).h, get(id).state]).toEqual([0, 0, 500, 260, 'maximized']);
+  store.toggleMaximize(id);
+  expect([get(id).x, get(id).y, get(id).state]).toEqual([420, 230, 'normal']);
+});
+
+test('toggleMaximize on a minimized window restores it first and keeps the original restoreRect', () => {
+  const { store, get } = setup(1000, 700);
+  const id = store.open({ ...base, rect: { x: 123, y: 77 } });
+  store.minimize(id);
+  store.toggleMaximize(id);
+  expect([get(id).state, get(id).restoreRect]).toEqual(['maximized', { x: 123, y: 77, w: 300, h: 200 }]);
+  store.toggleMaximize(id);
+  expect([get(id).x, get(id).y, get(id).w, get(id).h, get(id).state]).toEqual([123, 77, 300, 200, 'normal']);
+});
+
+test('toggleMaximize on a minimized-from-maximized window returns it to normal', () => {
+  const { store, get } = setup(1000, 700);
+  const id = store.open({ ...base, rect: { x: 123, y: 77 } });
+  store.toggleMaximize(id);
+  store.minimize(id);
+  store.toggleMaximize(id);
+  expect([get(id).x, get(id).y, get(id).state, get(id).restoreRect]).toEqual([123, 77, 'normal', undefined]);
+});
+
+test('move and resize on a maximized window are ignored', () => {
+  const { store, get } = setup(1000, 700);
+  const id = store.open(base);
+  store.toggleMaximize(id);
+  store.move(id, 50, 50);
+  store.resize(id, { x: 5, y: 5, w: 200, h: 200 });
+  expect([get(id).x, get(id).y, get(id).w, get(id).h]).toEqual([0, 0, 1000, 660]);
+});
+
+test('focus on a minimized window restores it', () => {
+  const { store, get } = setup();
+  const a = store.open(base);
+  const b = store.open(base);
+  store.minimize(a);
+  store.focus(a);
+  expect(get(a).state).toBe('normal');
+  expect(store.focusedId.value).toBe(a);
+  expect(get(a).z).toBeGreaterThan(get(b).z);
+});
+
+test('close of an unknown id does not touch the windows array', () => {
+  const { store } = setup();
+  store.open(base);
+  const before = store.windows.value;
+  store.close('nope');
+  expect(store.windows.value).toBe(before);
+});

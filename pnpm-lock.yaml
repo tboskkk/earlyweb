@@ -66,6 +66,9 @@ importers:
       preact:
         specifier: ^11.2.0
         version: 11.2.0
+      valibot:
+        specifier: ^1.5.0
+        version: 1.5.0(typescript@7.0.2)
     devDependencies:
       '@preact/preset-vite':
         specifier: ^2.10.6

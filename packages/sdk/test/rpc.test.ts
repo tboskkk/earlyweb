@@ -77,4 +77,51 @@ describe('rpc', () => {
     expect(await next()).toEqual({ t: 'response', id: 11, value: false });
     close();
   });
+
+  it('ignores garbage messages and still resolves later calls', async () => {
+    const { ch, rpc, next, close } = setup();
+    const p = rpc.call('window.close');
+    await next();
+    for (const g of [
+      null,
+      'str',
+      42,
+      { t: 'weird' },
+      { t: 'result', id: 99, ok: true, value: 1 },
+      { t: 'result', ok: true },
+      { t: 'event' },
+      { t: 'request', id: 'x', name: 'ping' },
+      { t: 'request', id: 5, name: 'nope' },
+    ]) {
+      ch.port2.postMessage(g);
+    }
+    ch.port2.postMessage({ t: 'result', id: 1, ok: true, value: null });
+    expect(await p).toBeNull();
+    close();
+  });
+
+  it('rejects with EINVAL when ok:false carries no valid error', async () => {
+    const { ch, rpc, next, close } = setup();
+    const p = rpc.call('window.close');
+    await next();
+    ch.port2.postMessage({ t: 'result', id: 1, ok: false });
+    const err = await p.then(
+      () => null,
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(EwError);
+    expect((err as EwError).code).toBe('EINVAL');
+    close();
+  });
+
+  it('a throwing event handler does not stop later handlers', async () => {
+    const { ch, rpc, close } = setup();
+    rpc.on('resize', () => {
+      throw new Error('boom');
+    });
+    const got = new Promise((res) => rpc.on('resize', res));
+    ch.port2.postMessage({ t: 'event', name: 'resize', data: { width: 3, height: 4 } });
+    expect(await got).toEqual({ width: 3, height: 4 });
+    close();
+  });
 });

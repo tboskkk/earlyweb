@@ -1,11 +1,11 @@
 import {
+  ERROR_CODES,
+  type ErrorCode,
   type EventMap,
   EwError,
   type MessagePortLike,
   type MethodMap,
   type RequestMap,
-  type ResultMsg,
-  type ShellToAppMsg,
 } from '@earlyweb/protocol';
 
 type Pending = { resolve: (v: never) => void; reject: (e: unknown) => void };
@@ -32,28 +32,52 @@ export function createRpc(port: MessagePortLike): Rpc {
     beforeClose: () => true,
   };
 
-  const onResult = (m: ResultMsg) => {
+  const onResult = (m: Record<string, unknown>) => {
+    if (typeof m.id !== 'number') return;
     const p = pending.get(m.id);
     if (!p) return;
-    pending.delete(m.id);
-    if (m.ok) p.resolve(m.value as never);
-    else p.reject(new EwError(m.error.code, m.error.message));
+    if (m.ok === true) {
+      pending.delete(m.id);
+      p.resolve(m.value as never);
+    } else if (m.ok === false) {
+      pending.delete(m.id);
+      const err = m.error as { code?: unknown; message?: unknown } | null | undefined;
+      if (
+        err &&
+        typeof err === 'object' &&
+        typeof err.message === 'string' &&
+        ERROR_CODES.includes(err.code as ErrorCode)
+      ) {
+        p.reject(new EwError(err.code as ErrorCode, err.message));
+      } else {
+        p.reject(new EwError('EINVAL', 'malformed error in result message'));
+      }
+    }
   };
 
   port.addEventListener('message', (e) => {
-    const m = e.data as ShellToAppMsg | null;
+    const m = e.data as Record<string, unknown> | null;
     if (!m || typeof m !== 'object') return;
     if (m.t === 'result') onResult(m);
     else if (m.t === 'event') {
-      for (const fn of listeners.get(m.name) ?? []) fn(m.data as never);
+      if (typeof m.name !== 'string') return;
+      for (const fn of [...(listeners.get(m.name as EventName) ?? [])]) {
+        try {
+          fn(m.data as never);
+        } catch {
+          // a throwing handler must not stop the others
+        }
+      }
     } else if (m.t === 'request') {
-      const h = handlers[m.name] as RequestHandler<keyof RequestMap> | undefined;
-      if (!h) return;
+      const { id, name } = m;
+      if (typeof id !== 'number' || typeof name !== 'string') return;
+      if (!Object.hasOwn(handlers, name)) return;
+      const h = handlers[name as keyof RequestMap] as RequestHandler<keyof RequestMap>;
       Promise.resolve()
         .then(() => h(m.data))
         .then(
-          (value) => port.postMessage({ t: 'response', id: m.id, value }),
-          () => port.postMessage({ t: 'response', id: m.id, value: m.name === 'beforeClose' }),
+          (value) => port.postMessage({ t: 'response', id, value }),
+          () => port.postMessage({ t: 'response', id, value: name === 'beforeClose' }),
         );
     }
   });

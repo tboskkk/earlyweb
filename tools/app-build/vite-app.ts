@@ -1,4 +1,4 @@
-import { cpSync, existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseManifest } from '@earlyweb/protocol';
 import type { Plugin, UserConfig } from 'vite';
@@ -11,20 +11,30 @@ export function defineAppConfig(appDir: string): UserConfig {
   const repoRoot = path.resolve(import.meta.dirname, '..', '..');
   const outDir = path.join(repoRoot, 'dist', 'apps', manifest.id, manifest.version);
 
-  const copyAssets: Plugin = {
-    name: 'earlyweb-copy-assets',
+  const emitAssets: Plugin = {
+    name: 'earlyweb-emit-assets',
     apply: 'build',
-    closeBundle() {
-      cpSync(manifestPath, path.join(outDir, 'earlyweb.json'));
+    buildStart() {
+      this.addWatchFile(manifestPath);
+    },
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'earlyweb.json', source: readFileSync(manifestPath) });
       const icons = path.join(dir, 'icons');
-      if (existsSync(icons)) cpSync(icons, path.join(outDir, 'icons'), { recursive: true });
+      if (!existsSync(icons)) return;
+      for (const f of readdirSync(icons, { recursive: true, withFileTypes: true })) {
+        if (!f.isFile()) continue;
+        const full = path.join(f.parentPath, f.name);
+        this.addWatchFile(full);
+        const rel = path.relative(dir, full).split(path.sep).join('/');
+        this.emitFile({ type: 'asset', fileName: rel, source: readFileSync(full) });
+      }
     },
   };
 
   return {
     root: dir,
     base: './',
-    plugins: [copyAssets],
+    plugins: [emitAssets],
     build: { outDir, emptyOutDir: true },
   };
 }

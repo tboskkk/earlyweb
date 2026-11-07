@@ -115,11 +115,9 @@ export function createAppServer(opts: AppServerOptions): http.Server {
     }
 
     const ext = path.extname(target).toLowerCase();
-    if (ext === '.html') {
-      const manifest = await readManifest(path.join(root, id, version, 'earlyweb.json'));
-      if (!manifest) return send(404, 'not found');
-      res.setHeader('content-security-policy', appCsp(manifest, opts.shellOrigin));
-    }
+    const manifest = await readManifest(path.join(root, id, version, 'earlyweb.json'));
+    if (!manifest) return send(404, 'not found');
+    res.setHeader('content-security-policy', appCsp(manifest, opts.shellOrigin));
     let data: Buffer;
     try {
       data = await fs.readFile(real);

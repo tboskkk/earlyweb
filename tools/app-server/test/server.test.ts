@@ -36,6 +36,9 @@ beforeAll(async () => {
   writeFileSync(join(dir, 'index.html'), '<!doctype html><title>x</title>');
   writeFileSync(join(dir, 'main.js'), 'export {}');
   writeFileSync(join(dir, 'data.bin'), 'zz');
+  writeFileSync(join(dir, 'pic.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
+  mkdirSync(`${root}-evil`, { recursive: true });
+  writeFileSync(join(`${root}-evil`, 'x.txt'), 'evil sibling');
   const bad = join(root, 'org.bad.app', '1.0.0');
   mkdirSync(bad, { recursive: true });
   writeFileSync(join(bad, 'earlyweb.json'), '{"id": "nope"}');
@@ -97,13 +100,21 @@ describe('static files', () => {
     expect(res.headers.get('access-control-allow-origin')).toBe('*');
   });
 
-  test('js has javascript type, ACAO and no CSP', async () => {
+  test('js has javascript type, ACAO and the per-app CSP', async () => {
     const res = await fetch(`${base}/org.test.app/1.0.0/main.js`);
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/javascript');
     expect(res.headers.get('access-control-allow-origin')).toBe('*');
-    expect(res.headers.get('content-security-policy')).toBeNull();
+    // Deliberate spec-driven change (PLAN.md 4.1): CSP on every app file response.
+    expect(res.headers.get('content-security-policy')).toBe(appCsp(parseManifest(manifestJson), SHELL));
     expect(await res.text()).toBe('export {}');
+  });
+
+  test('svg carries the per-app CSP', async () => {
+    const res = await fetch(`${base}/org.test.app/1.0.0/pic.svg`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('image/svg+xml');
+    expect(res.headers.get('content-security-policy')).toBe(appCsp(parseManifest(manifestJson), SHELL));
   });
 
   test('unknown extension is octet-stream', async () => {
@@ -154,15 +165,33 @@ describe('traversal', () => {
   for (const p of paths) {
     test(`rejects ${p}`, async () => {
       const r = await raw(p);
-      expect([400, 404]).toContain(r.status);
+      expect(r.status).toBe(404);
       expect(r.body).not.toContain('top secret');
       expect(r.body).not.toContain('root:');
     });
   }
 
+  test('sibling directory sharing the root prefix is unreachable', async () => {
+    for (const p of [
+      '/org.test.app/1.0.0/../../../apps-evil/x.txt',
+      '/%2e%2e/apps-evil/x.txt',
+      '/apps-evil/x.txt',
+    ]) {
+      const r = await raw(p);
+      expect(r.status).toBe(404);
+      expect(r.body).not.toContain('evil sibling');
+    }
+  });
+
+  test('proof: the same file is reachable when addressed legitimately', async () => {
+    const r = await raw('/org.test.app/1.0.0/main.js');
+    expect(r.status).toBe(200);
+    expect(r.body).toBe('export {}');
+  });
+
   test('malformed percent escapes do not crash the server', async () => {
     const r = await raw('/org.test.app/1.0.0/%E0%A4%A');
-    expect([400, 404]).toContain(r.status);
+    expect(r.status).toBe(400);
     expect((await fetch(`${base}/index.json`)).status).toBe(200);
   });
 });

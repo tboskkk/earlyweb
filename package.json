@@ -9,10 +9,14 @@
   "scripts": {
     "test": "vitest run",
     "lint": "biome check .",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "build:apps": "pnpm -r --filter \"./apps/*\" --filter \"./tests/fixtures/*\" build",
+    "dev": "concurrently -n shell,apps,server -c auto \"pnpm --filter @earlyweb/shell dev\" \"pnpm build:apps --watch\" \"node tools/app-server/src/cli.ts --root dist/apps --port 5174 --host 127.0.0.1\""
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.6",
+    "@types/node": "^22",
+    "concurrently": "^10.0.7",
     "typescript": "^7.0.2",
     "vitest": "^5.1.0"
   }

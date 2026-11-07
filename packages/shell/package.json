@@ -1,0 +1,16 @@
+{
+  "name": "@earlyweb/shell",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@earlyweb/backends": "workspace:*",
+    "@earlyweb/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "^6.2.7"
+  }
+}

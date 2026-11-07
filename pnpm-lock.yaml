@@ -37,6 +37,19 @@ importers:
         specifier: ^1.5.0
         version: 1.5.0(typescript@7.0.2)
 
+  packages/shell:
+    dependencies:
+      '@earlyweb/backends':
+        specifier: workspace:*
+        version: link:../backends
+      '@earlyweb/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+    devDependencies:
+      fake-indexeddb:
+        specifier: ^6.2.7
+        version: 6.2.7
+
 packages:
 
   '@biomejs/biome@2.6.6':

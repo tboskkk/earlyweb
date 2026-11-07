@@ -37,6 +37,12 @@ importers:
         specifier: ^1.5.0
         version: 1.5.0(typescript@7.0.2)
 
+  packages/sdk:
+    dependencies:
+      '@earlyweb/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+
   packages/shell:
     dependencies:
       '@earlyweb/backends':

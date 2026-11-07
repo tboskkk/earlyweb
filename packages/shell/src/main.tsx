@@ -19,6 +19,8 @@ import { createLauncher } from './host/launcher.ts';
 import { createFsService } from './services/fs-service.ts';
 import { createGrantTable } from './services/grants.ts';
 import { type CatalogEntry, loadCatalog } from './state/catalog.ts';
+import { loadSession, restoreSession, saveSession, snapshot } from './state/session.ts';
+import { createSessionSaver } from './state/session-saver.ts';
 import { createWindowStore } from './state/windows.ts';
 import { Desktop } from './ui/Desktop.tsx';
 
@@ -40,7 +42,7 @@ async function boot() {
   if (import.meta.env.DEV) (window as unknown as { __ew?: unknown }).__ew = { dialogs };
 
   const catalog = signal<CatalogEntry[]>([]);
-  loadCatalog(APP_ORIGIN).then(
+  const catalogReady = loadCatalog(APP_ORIGIN).then(
     (entries) => {
       catalog.value = entries;
     },
@@ -111,6 +113,39 @@ async function boot() {
       (f) => frameWindows.get(f),
     );
   });
+
+  // Session: restore once the catalog is loaded, and only then enable saving (an empty
+  // initial store must not overwrite the stored session). Policy: debounce 500 ms for
+  // churn (drag/resize); save immediately when the set of windows or a launch file
+  // changes, and when the page is hidden.
+  const saver = createSessionSaver({
+    save: () => void saveSession(kv, snapshot(store, launcher.instances)).catch(() => {}),
+    debounceMs: 500,
+  });
+  let lastKey = '';
+  const structureKey = () =>
+    JSON.stringify(snapshot(store, launcher.instances).map((r) => [r.appId, r.launch.file?.id ?? null]));
+  effect(() => {
+    store.windows.value;
+    launcher.instances.value;
+    const key = structureKey();
+    if (key !== lastKey) {
+      lastKey = key;
+      saver.flushNow();
+    } else saver.schedule();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') saver.flushNow();
+  });
+  window.addEventListener('pagehide', () => saver.flushNow());
+  void catalogReady
+    .then(() => loadSession(kv))
+    .then((records) => restoreSession(records, launcher, catalog, store))
+    .catch((err) => console.error('session restore failed', err))
+    .finally(() => {
+      lastKey = structureKey();
+      saver.enable();
+    });
 
   function Root() {
     return (

@@ -1,6 +1,11 @@
 import { signal } from '@preact/signals';
 import { expect, test, vi } from 'vitest';
-import { focusWindowOfActiveFrame, forwardWindowEvents } from '../src/host/events.ts';
+import {
+  emitInitialFocus,
+  focusWindowOfActiveFrame,
+  forwardWindowEvents,
+  onWindowBlur,
+} from '../src/host/events.ts';
 import { CHROME_H, CHROME_W } from '../src/state/content-size.ts';
 import { createWindowStore } from '../src/state/windows.ts';
 
@@ -70,4 +75,33 @@ test('window blur fallback focuses the window owning the active iframe', () => {
   focusWindowOfActiveFrame(store, null, () => 'zzz');
   focusWindowOfActiveFrame(store, { contentWindow: {} }, () => undefined);
   expect(store.focusedId.value).toBe(a);
+});
+
+test('onWindowBlur defers the activeElement check to a later task', () => {
+  vi.useFakeTimers();
+  const { store, open } = setup();
+  const a = open('a');
+  open('b');
+  const frame = {};
+  onWindowBlur(
+    store,
+    () => ({ contentWindow: frame }),
+    () => a,
+  );
+  expect(store.focusedId.value).not.toBe(a);
+  vi.runAllTimers();
+  expect(store.focusedId.value).toBe(a);
+  vi.useRealTimers();
+});
+
+test('emitInitialFocus emits focus only when the window is the focused one', () => {
+  const { store, open } = setup();
+  const a = open('a');
+  const b = open('b');
+  const conn = { emit: vi.fn() };
+  emitInitialFocus(store, conn, a);
+  expect(conn.emit).not.toHaveBeenCalled();
+  emitInitialFocus(store, conn, b);
+  expect(conn.emit).toHaveBeenCalledWith('focus', null);
+  emitInitialFocus(store, undefined, b);
 });

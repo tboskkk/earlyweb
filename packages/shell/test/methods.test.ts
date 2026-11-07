@@ -12,7 +12,7 @@ import type { AppInstance } from '../src/host/handshake.ts';
 import { createFsService } from '../src/services/fs-service.ts';
 import { createGrantTable } from '../src/services/grants.ts';
 import { CHROME_H, CHROME_W } from '../src/state/content-size.ts';
-import { createWindowStore } from '../src/state/windows.ts';
+import { createWindowStore, TASKBAR_H } from '../src/state/windows.ts';
 
 const APP = 'org.x.app';
 let n = 0;
@@ -142,4 +142,49 @@ test('theme.get returns the theme tokens', async () => {
   const { ctxFor } = windows();
   const r = await themeHandlers(() => glass)['theme.get']?.(ctxFor(APP, 'w'), {});
   expect(r).toEqual({ tokens: glass.tokens });
+});
+
+const zOf = (store: ReturnType<typeof windows>['store'], id: string) =>
+  store.windows.value.find((w) => w.id === id)?.z;
+
+test('window.focus on the already focused window does not bump z, even 1000 times', async () => {
+  const { store, open, ctxFor } = windows();
+  const a = open(APP);
+  const z = zOf(store, a);
+  const h = windowHandlers(store)['window.focus'];
+  for (let i = 0; i < 1000; i++) await h?.(ctxFor(APP, a), {});
+  expect(zOf(store, a)).toBe(z);
+});
+
+test('window.focus on a minimized window is a no-op', async () => {
+  const { store, open, ctxFor } = windows();
+  const a = open(APP);
+  const b = open('org.y.app');
+  store.minimize(a);
+  await windowHandlers(store)['window.focus']?.(ctxFor(APP, a), {});
+  expect(store.windows.value.find((w) => w.id === a)?.state).toBe('minimized');
+  expect(store.focusedId.value).toBe(b);
+});
+
+test('window.setSize clamps the window to the viewport above the taskbar when given a viewport', async () => {
+  const { store, open, ctxFor } = windows();
+  const a = open(APP);
+  const h = windowHandlers(store, { getViewport: () => ({ width: 1200, height: 800 }) })['window.setSize'];
+  await h?.(ctxFor(APP, a), { width: 1e8, height: 1e8 });
+  const w = store.windows.value.find((x) => x.id === a);
+  expect(w?.w).toBeLessThanOrEqual(1200);
+  expect(w?.h).toBeLessThanOrEqual(800 - TASKBAR_H);
+  await h?.(ctxFor(APP, a), { width: 500, height: 400 });
+  const w2 = store.windows.value.find((x) => x.id === a);
+  expect([w2?.w, w2?.h]).toEqual([500 + CHROME_W, 400 + CHROME_H]);
+});
+
+test('window.setTitle strips control and bidi override characters; empty result is ignored', async () => {
+  const { store, open, ctxFor } = windows();
+  const a = open(APP);
+  const h = windowHandlers(store)['window.setTitle'];
+  await h?.(ctxFor(APP, a), { title: ' Evil\n\u202Etxt.exe\u2066 ' });
+  expect(store.windows.value.find((w) => w.id === a)?.title).toBe('Eviltxt.exe');
+  await h?.(ctxFor(APP, a), { title: '\n\u202E ' });
+  expect(store.windows.value.find((w) => w.id === a)?.title).toBe('Eviltxt.exe');
 });

@@ -10,7 +10,7 @@ import { themeHandlers } from './broker/methods/theme.ts';
 import { windowHandlers } from './broker/methods/window.ts';
 import { APP_ORIGIN } from './config.ts';
 import { AppFrame } from './host/AppFrame.tsx';
-import { focusWindowOfActiveFrame, forwardWindowEvents } from './host/events.ts';
+import { emitInitialFocus, forwardWindowEvents, onWindowBlur } from './host/events.ts';
 import { createHandshake } from './host/handshake.ts';
 import { createLauncher } from './host/launcher.ts';
 import { createFsService } from './services/fs-service.ts';
@@ -47,14 +47,21 @@ async function boot() {
   const broker = createBroker({
     handlers: {
       ...appHandlers({ onReady: (id) => lazy.launcher?.ready(id) }),
-      ...windowHandlers(store, { onClose: (id) => void lazy.launcher?.close(id) }),
+      ...windowHandlers(store, {
+        getViewport: () => viewport.peek(),
+        onClose: (id) => void lazy.launcher?.close(id),
+      }),
       ...fsHandlers(fsService),
       ...themeHandlers(() => glass),
     },
   });
   const handshake = createHandshake({
     listenOn: window,
-    onConnect: (instance, port) => lazy.launcher?.connect(instance, port),
+    onConnect: (instance, port) => {
+      lazy.launcher?.connect(instance, port);
+      const conn = lazy.launcher?.instances.peek().get(instance.instanceId)?.conn;
+      emitInitialFocus(store, conn, instance.windowId);
+    },
     makeInit: (instance) => ({
       instanceId: instance.instanceId,
       appId: instance.appId,
@@ -74,8 +81,14 @@ async function boot() {
 
   const frameWindows = new Map<unknown, string>();
   window.addEventListener('blur', () => {
-    const el = document.activeElement as HTMLIFrameElement | null;
-    focusWindowOfActiveFrame(store, el?.tagName === 'IFRAME' ? el : null, (f) => frameWindows.get(f));
+    onWindowBlur(
+      store,
+      () => {
+        const el = document.activeElement as HTMLIFrameElement | null;
+        return el?.tagName === 'IFRAME' ? el : null;
+      },
+      (f) => frameWindows.get(f),
+    );
   });
 
   function Root() {
@@ -118,4 +131,9 @@ async function boot() {
   render(<Root />, document.getElementById('app') as HTMLElement);
 }
 
-boot().catch((err) => console.error('boot failed', err));
+boot().catch((err) => {
+  console.error('boot failed', err);
+  const root = document.getElementById('app');
+  if (root)
+    root.textContent = `EarlyWeb failed to start: ${err instanceof Error ? err.message : String(err)}`;
+});

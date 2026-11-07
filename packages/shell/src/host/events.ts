@@ -51,3 +51,17 @@ export function focusWindowOfActiveFrame(
   const id = windowIdOfFrame(frame);
   if (id) store.focus(id);
 }
+
+/** Defers the activeElement check: it is not yet updated while the window blur event fires. */
+export function onWindowBlur(
+  store: WindowStore,
+  getActive: () => { contentWindow?: unknown } | null,
+  windowIdOfFrame: (frame: unknown) => string | undefined,
+): void {
+  setTimeout(() => focusWindowOfActiveFrame(store, getActive(), windowIdOfFrame), 0);
+}
+
+/** A newly connected app missed the focus event if its window was already focused. */
+export function emitInitialFocus(store: WindowStore, conn: Emitter | undefined, windowId: string): void {
+  if (conn && store.focusedId.peek() === windowId) conn.emit('focus', null);
+}

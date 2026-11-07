@@ -12,7 +12,7 @@ import { windowHandlers } from '../src/broker/methods/window.ts';
 import type { AppInstance } from '../src/host/handshake.ts';
 import { createFsService } from '../src/services/fs-service.ts';
 import { createGrantTable } from '../src/services/grants.ts';
-import { createWindowStore } from '../src/state/windows.ts';
+import { createWindowStore, TASKBAR_H } from '../src/state/windows.ts';
 
 const EVIL = 'org.evil.app';
 const NOTEPAD = 'org.earlyweb.notepad';
@@ -50,7 +50,7 @@ async function setup() {
   const broker = createBroker({
     handlers: {
       ...appHandlers({ onReady: () => {} }),
-      ...windowHandlers(store),
+      ...windowHandlers(store, { getViewport: () => ({ width: 1200, height: 800 }) }),
       ...fsHandlers(svc),
       ...themeHandlers(() => glass),
     },
@@ -116,6 +116,7 @@ test('traversal out of /apps/self into another app -> EPERM', async () => {
 test('a grant id issued to another app -> EPERM', async () => {
   const { grants, errorOf } = await setup();
   const g = grants.issue(NOTEPAD, '/home/user/Documents/secret.txt');
+  expect(grants.resolve(NOTEPAD, g.id)).toBe('/home/user/Documents/secret.txt'); // positive control
   expect((await errorOf('fs.readText', { ref: g.id })).code).toBe('EPERM');
 });
 
@@ -138,4 +139,36 @@ test('window calls act only on the caller window, whatever the params say', asyn
   expect(r.ok).toBe(true);
   expect(store.windows.value.find((w) => w.id === victimWin)?.title).toBe('orig');
   expect(store.windows.value.find((w) => w.id === evilWin)?.title).toBe('pwned');
+});
+
+test('window.focus cannot un-minimize the caller window', async () => {
+  const { store, evilWin, victimWin, call } = await setup();
+  store.minimize(evilWin);
+  expect(store.focusedId.value).toBe(victimWin);
+  const r = await call('window.focus', {});
+  expect(r.ok).toBe(true);
+  expect(store.windows.value.find((w) => w.id === evilWin)?.state).toBe('minimized');
+  expect(store.focusedId.value).toBe(victimWin);
+});
+
+test('repeated window.focus while focused does not keep raising z', async () => {
+  const { store, evilWin, call } = await setup();
+  expect(store.focusedId.value).toBe(evilWin);
+  const z = store.windows.value.find((w) => w.id === evilWin)?.z;
+  for (let i = 0; i < 150; i++) expect((await call('window.focus', {})).ok).toBe(true);
+  expect(store.windows.value.find((w) => w.id === evilWin)?.z).toBe(z);
+});
+
+test('window.setTitle with spoofing characters is sanitized', async () => {
+  const { store, evilWin, call } = await setup();
+  await call('window.setTitle', { title: 'a\nb\u202Ec' });
+  expect(store.windows.value.find((w) => w.id === evilWin)?.title).toBe('abc');
+});
+
+test('window.setSize with huge values cannot exceed the viewport or cover the taskbar', async () => {
+  const { store, evilWin, call } = await setup();
+  expect((await call('window.setSize', { width: 100000000, height: 100000000 })).ok).toBe(true);
+  const w = store.windows.value.find((x) => x.id === evilWin);
+  expect(w?.w).toBeLessThanOrEqual(1200);
+  expect(w?.h).toBeLessThanOrEqual(800 - TASKBAR_H);
 });

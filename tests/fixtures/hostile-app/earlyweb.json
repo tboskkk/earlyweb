@@ -1,0 +1,16 @@
+{
+  "manifestVersion": 1,
+  "id": "test.earlyweb.hostile",
+  "name": "Hostile Test App",
+  "version": "0.0.1",
+  "description": "E2E fixture: tries to escape the sandbox and reports what was blocked.",
+  "author": { "name": "EarlyWeb" },
+  "license": "MIT",
+  "sdk": "^0.1.0",
+  "entry": "index.html",
+  "icons": { "16": "icons/16.svg", "32": "icons/32.svg", "48": "icons/48.svg" },
+  "window": { "width": 480, "height": 320 },
+  "permissions": [],
+  "network": [],
+  "category": "Tests"
+}

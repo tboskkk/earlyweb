@@ -1,0 +1,17 @@
+{
+  "name": "@earlyweb/hostile-app",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@earlyweb/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@earlyweb/app-build": "workspace:*",
+    "vite": "^8.3.6"
+  }
+}

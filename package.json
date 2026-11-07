@@ -9,12 +9,15 @@
   "scripts": {
     "test": "vitest run",
     "lint": "biome check .",
-    "typecheck": "pnpm -r typecheck",
+    "typecheck": "pnpm -r typecheck && tsc -p tests/e2e",
     "build:apps": "pnpm -r --filter \"./apps/*\" --filter \"./tests/fixtures/*\" build",
-    "dev": "concurrently -n shell,apps,server -c auto \"pnpm --filter @earlyweb/shell dev\" \"pnpm build:apps --watch\" \"node tools/app-server/src/cli.ts --root dist/apps --port 5174 --host 127.0.0.1\""
+    "dev": "concurrently -n shell,apps,server -c auto \"pnpm --filter @earlyweb/shell dev\" \"pnpm build:apps --watch\" \"node tools/app-server/src/cli.ts --root dist/apps --port 5174 --host 127.0.0.1\"",
+    "dev:servers": "concurrently -k -n shell,server -c auto \"pnpm --filter @earlyweb/shell dev\" \"node tools/app-server/src/cli.ts --root dist/apps --port 5174 --host 127.0.0.1\"",
+    "e2e": "playwright test"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.6",
+    "@playwright/test": "^1.64.1",
     "@types/node": "^22",
     "concurrently": "^10.0.7",
     "typescript": "^7.0.2",

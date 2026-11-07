@@ -4,15 +4,21 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "vite",
+    "build": "vite build",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@earlyweb/backends": "workspace:*",
     "@earlyweb/protocol": "workspace:*",
+    "@earlyweb/themes": "workspace:*",
     "@preact/signals": "^2.11.4",
     "preact": "^11.2.0"
   },
   "devDependencies": {
-    "fake-indexeddb": "^6.2.7"
+    "@preact/preset-vite": "^2.10.6",
+    "fake-indexeddb": "^6.2.7",
+    "happy-dom": "^21.0.4",
+    "vite": "^8.3.6"
   }
 }

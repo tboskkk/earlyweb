@@ -1,0 +1,13 @@
+{
+  "name": "@earlyweb/themes",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./glass/chrome.css": "./src/glass/chrome.css"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}

@@ -5,10 +5,13 @@ import { signal } from '@preact/signals';
 import { render } from 'preact';
 import { createBroker } from './broker/broker.ts';
 import { appHandlers } from './broker/methods/app.ts';
+import { dialogHandlers } from './broker/methods/dialog.ts';
 import { fsHandlers } from './broker/methods/fs.ts';
 import { themeHandlers } from './broker/methods/theme.ts';
 import { windowHandlers } from './broker/methods/window.ts';
 import { APP_ORIGIN } from './config.ts';
+import { createDialogService } from './dialogs/dialog-service.ts';
+import { ModalLayer } from './dialogs/ModalLayer.tsx';
 import { AppFrame } from './host/AppFrame.tsx';
 import { emitInitialFocus, forwardWindowEvents, onWindowBlur } from './host/events.ts';
 import { createHandshake } from './host/handshake.ts';
@@ -33,6 +36,8 @@ async function boot() {
   await ensureHome(fs);
   const grants = await createGrantTable(kv);
   const fsService = createFsService(fs, grants);
+  const dialogs = createDialogService();
+  if (import.meta.env.DEV) (window as unknown as { __ew?: unknown }).__ew = { dialogs };
 
   const catalog = signal<CatalogEntry[]>([]);
   loadCatalog(APP_ORIGIN).then(
@@ -52,6 +57,12 @@ async function boot() {
         onClose: (id) => void lazy.launcher?.close(id),
       }),
       ...fsHandlers(fsService),
+      ...dialogHandlers({
+        dialogs,
+        grants,
+        fs,
+        onGrant: (id, ref) => lazy.launcher?.setLaunchFile(id, ref),
+      }),
       ...themeHandlers(() => glass),
     },
   });
@@ -93,38 +104,41 @@ async function boot() {
 
   function Root() {
     return (
-      <Desktop
-        store={store}
-        apps={catalog.value}
-        onLaunch={(appId) => launcher.launch(appId)}
-        renderApp={(win) => {
-          const entry = launcher.instances.value.get(win.instanceId);
-          if (!entry) return null;
-          return (
-            <AppFrame
-              key={win.id}
-              appId={entry.instance.appId}
-              baseUrl={entry.baseUrl}
-              entry={entry.instance.manifest.entry}
-              onWindow={(frame) => {
-                if (frame) frameWindows.set(frame, win.id);
-                else for (const [f, id] of frameWindows) if (id === win.id) frameWindows.delete(f);
-                launcher.attachFrame(entry.instance.instanceId, frame);
-              }}
-            />
-          );
-        }}
-        onCloseRequest={(id) => {
-          const e = instanceOfWindow(id);
-          if (e) void launcher.close(e.instance.instanceId);
-          else store.close(id);
-        }}
-        onEndTask={(id) => {
-          const e = instanceOfWindow(id);
-          if (e) launcher.endTask(e.instance.instanceId);
-          else store.close(id);
-        }}
-      />
+      <>
+        <Desktop
+          store={store}
+          apps={catalog.value}
+          onLaunch={(appId) => launcher.launch(appId)}
+          renderApp={(win) => {
+            const entry = launcher.instances.value.get(win.instanceId);
+            if (!entry) return null;
+            return (
+              <AppFrame
+                key={win.id}
+                appId={entry.instance.appId}
+                baseUrl={entry.baseUrl}
+                entry={entry.instance.manifest.entry}
+                onWindow={(frame) => {
+                  if (frame) frameWindows.set(frame, win.id);
+                  else for (const [f, id] of frameWindows) if (id === win.id) frameWindows.delete(f);
+                  launcher.attachFrame(entry.instance.instanceId, frame);
+                }}
+              />
+            );
+          }}
+          onCloseRequest={(id) => {
+            const e = instanceOfWindow(id);
+            if (e) void launcher.close(e.instance.instanceId);
+            else store.close(id);
+          }}
+          onEndTask={(id) => {
+            const e = instanceOfWindow(id);
+            if (e) launcher.endTask(e.instance.instanceId);
+            else store.close(id);
+          }}
+        />
+        <ModalLayer dialogs={dialogs} fs={fs} />
+      </>
     );
   }
 

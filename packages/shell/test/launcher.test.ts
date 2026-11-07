@@ -278,3 +278,19 @@ test('watchdog not-responding changes reach the window', async () => {
   await vi.advanceTimersByTimeAsync(3000);
   expect(win(wid)?.notResponding).toBe(true);
 });
+
+test('setLaunchFile replaces the instance entry immutably with the new launch.file', () => {
+  const { launcher } = setup();
+  const id = launcher.launch('a.b.one');
+  const before = launcher.instances.value;
+  const entryBefore = before.get(id);
+  launcher.setLaunchFile(id, { id: 'g_1', name: 'a.txt' });
+  const after = launcher.instances.value;
+  expect(after).not.toBe(before);
+  expect(after.get(id)).not.toBe(entryBefore);
+  expect(after.get(id)?.instance.launch).toEqual({ args: [], file: { id: 'g_1', name: 'a.txt' } });
+  expect(entryBefore?.instance.launch.file).toBeUndefined();
+  launcher.setLaunchFile(id, { id: 'g_2', name: 'b.txt' });
+  expect(launcher.instances.value.get(id)?.instance.launch.file).toEqual({ id: 'g_2', name: 'b.txt' });
+  launcher.setLaunchFile('unknown', { id: 'g_3', name: 'c' }); // no-op, no throw
+});

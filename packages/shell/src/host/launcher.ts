@@ -1,4 +1,4 @@
-import type { LaunchArgs, MessagePortLike } from '@earlyweb/protocol';
+import type { FileRef, LaunchArgs, MessagePortLike } from '@earlyweb/protocol';
 import type { Signal } from '@preact/signals';
 import { signal } from '@preact/signals';
 import type { Broker, Connection } from '../broker/broker.ts';
@@ -22,6 +22,8 @@ export type Launcher = {
   attachFrame(instanceId: string, frameWindow: unknown): void;
   /** Called by the app.ready handler: reveals the window. */
   ready(instanceId: string): void;
+  /** Records the most recent user-granted file as the instance's launch.file (immutably). */
+  setLaunchFile(instanceId: string, ref: FileRef): void;
 };
 
 type Runtime = { frame?: unknown; stopWatchdog?: () => void; fallback?: ReturnType<typeof setTimeout> };
@@ -69,6 +71,12 @@ export function createLauncher(deps: {
   return {
     instances,
     ready,
+    setLaunchFile(instanceId, ref) {
+      const entry = instances.peek().get(instanceId);
+      if (!entry) return;
+      const instance = { ...entry.instance, launch: { ...entry.instance.launch, file: ref } };
+      setEntry(instanceId, { ...entry, instance });
+    },
     endTask,
     launch(appId, launch = { args: [] }, rect) {
       const cat = catalog.peek().find((c) => c.manifest.id === appId);

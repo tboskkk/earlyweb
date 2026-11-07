@@ -304,3 +304,198 @@ body {
     background: linear-gradient(180deg, #5a9fdc 0%, #1e5aa5 100%);
   }
 }
+
+/* Trusted dialogs: above the taskbar (100000) and start menu (100001). */
+.ew-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 200000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 20, 45, 0.45);
+}
+
+.ew-dialog {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 24px);
+  background: var(--ew-surface);
+  color: var(--ew-text);
+  border: 1px solid var(--ew-window-border);
+  border-radius: var(--ew-window-radius);
+  box-shadow: 0 10px 40px rgba(0, 20, 60, 0.6);
+  outline: none;
+}
+
+.ew-dialog-message {
+  min-width: 300px;
+  max-width: 480px;
+}
+
+.ew-dialog-open,
+.ew-dialog-save {
+  width: 620px;
+}
+
+.ew-dlg-title {
+  padding: 6px 10px;
+  font-weight: 700;
+  color: var(--ew-titlebar-fg);
+  background: var(--ew-titlebar-bg);
+  border-radius: var(--ew-window-radius) var(--ew-window-radius) 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ew-dlg-from {
+  padding: 4px 10px;
+  font-size: 11px;
+  opacity: 0.75;
+  border-top: 1px solid var(--ew-button-border);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ew-dlg-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.ew-msg {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  gap: 12px;
+}
+
+.ew-msg-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 50vh;
+  overflow: auto;
+  align-self: center;
+  user-select: text;
+}
+
+.ew-dlg-buttons {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.ew-dlg-buttons .ew-btn {
+  min-width: 72px;
+}
+
+.ew-file-path {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-family: monospace;
+  overflow: hidden;
+}
+
+.ew-file-panes {
+  display: flex;
+  gap: 8px;
+  height: 260px;
+}
+
+.ew-file-tree,
+.ew-file-list {
+  background: #fff;
+  border: 1px solid var(--ew-button-border);
+  overflow: auto;
+}
+
+.ew-file-tree {
+  width: 170px;
+  flex: none;
+}
+
+.ew-file-list {
+  flex: 1;
+  outline-offset: -2px;
+}
+
+.ew-tree-row,
+.ew-file-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  white-space: nowrap;
+}
+
+.ew-tree-row button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0 2px;
+  cursor: default;
+}
+
+.ew-sel {
+  background: var(--ew-selection);
+}
+
+.ew-file-ico {
+  display: inline-block;
+  width: 14px;
+  height: 11px;
+  flex: none;
+  border-radius: 2px;
+}
+
+.ew-folder {
+  background: #f0c24b;
+  border: 1px solid #b58a1c;
+}
+
+.ew-doc {
+  width: 10px;
+  height: 13px;
+  background: #fff;
+  border: 1px solid #6b86a8;
+}
+
+.ew-file-empty {
+  padding: 8px;
+  opacity: 0.6;
+}
+
+.ew-file-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ew-file-field input {
+  flex: 1;
+  font: inherit;
+  user-select: text;
+}
+
+.ew-file-error {
+  color: #b3261e;
+}
+
+.ew-file-bottom {
+  align-items: center;
+}
+
+.ew-file-bottom select {
+  margin-right: auto;
+  font: inherit;
+  max-width: 260px;
+}

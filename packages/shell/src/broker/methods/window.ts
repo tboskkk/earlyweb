@@ -1,10 +1,11 @@
 import type { MethodMap } from '@earlyweb/protocol';
+import { UNSAFE_CHARS } from '../../dialogs/dialog-service.ts';
 import { toWindowSize } from '../../state/content-size.ts';
 import { TASKBAR_H, type WindowStore } from '../../state/windows.ts';
 import type { Handler } from '../broker.ts';
 
 // Control characters and bidi override/isolate characters could spoof the titlebar.
-const sanitizeTitle = (t: string) => t.replace(/[\p{Cc}\u202A-\u202E\u2066-\u2069]/gu, '').trim();
+const sanitizeTitle = (t: string) => t.replace(UNSAFE_CHARS, '').trim();
 
 /**
  * Every handler operates only on the caller's own window (ctx.instance.windowId);
@@ -48,11 +49,11 @@ export function windowHandlers(
       return null;
     },
     'window.focus': async (ctx) => {
-      // A hidden window can't legitimately ping, and re-focusing the focused
+      // An unshown or minimized window can't legitimately ping, and re-focusing the focused
       // window must not keep bumping z; only raising a visible one is allowed.
       const id = ctx.instance.windowId;
       const win = store.windows.peek().find((w) => w.id === id);
-      if (!win || win.state === 'minimized' || store.focusedId.peek() === id) return null;
+      if (!win?.shown || win.state === 'minimized' || store.focusedId.peek() === id) return null;
       store.focus(id);
       return null;
     },

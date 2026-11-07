@@ -276,3 +276,20 @@ test('close of an unknown id does not touch the windows array', () => {
   store.close('nope');
   expect(store.windows.value).toBe(before);
 });
+
+test('z is renumbered once it passes 10000: stays <= 10000 and order is preserved', () => {
+  const { store, get } = setup();
+  const a = store.open(base);
+  const b = store.open(base);
+  const c = store.open(base);
+  for (let i = 0; i < 25000; i++) {
+    store.focus(i % 2 ? a : b);
+    expect(Math.max(get(a).z, get(b).z, get(c).z)).toBeLessThanOrEqual(10000);
+  }
+  // last focus was a (i = 24999), before that b; c was never raised again
+  expect(get(a).z).toBeGreaterThan(get(b).z);
+  expect(get(b).z).toBeGreaterThan(get(c).z);
+  store.focus(c);
+  expect(get(c).z).toBeGreaterThan(get(a).z);
+  expect(new Set([a, b, c].map((id) => get(id).z)).size).toBe(3);
+});

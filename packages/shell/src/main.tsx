@@ -18,6 +18,7 @@ import { createHandshake } from './host/handshake.ts';
 import { createLauncher } from './host/launcher.ts';
 import { createFsService } from './services/fs-service.ts';
 import { createGrantTable } from './services/grants.ts';
+import { bootSession } from './state/boot-session.ts';
 import { type CatalogEntry, loadCatalog } from './state/catalog.ts';
 import { loadSession, restoreSession, saveSession, snapshot } from './state/session.ts';
 import { createSessionSaver } from './state/session-saver.ts';
@@ -150,13 +151,14 @@ async function boot() {
   void catalogReady
     .then(async (ok) => {
       if (!ok) return; // catalog failed: leave the stored session untouched, never enable saving
-      try {
-        restoreSession(await loadSession(kv), launcher, catalog, store);
-      } catch (err) {
-        console.error('session restore failed', err);
-      }
-      lastKey = structureKey();
-      saver.enable();
+      await bootSession({
+        load: () => loadSession(kv),
+        restore: (records) => restoreSession(records, launcher, catalog, store),
+        enable: () => {
+          lastKey = structureKey();
+          saver.enable();
+        },
+      });
     })
     .catch((err) => console.error('session boot failed', err));
 

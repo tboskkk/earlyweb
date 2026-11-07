@@ -5,7 +5,7 @@ import { FileFilterSchema, type FileRef, type FsEntry, type ThemeData } from './
 const none = v.optional(v.object({}));
 const ref = v.pipe(v.string(), v.minLength(1), v.maxLength(1024));
 const refParams = v.object({ ref });
-const filters = v.optional(v.array(FileFilterSchema));
+const filters = v.optional(v.pipe(v.array(FileFilterSchema), v.maxLength(16)));
 
 type MethodDef = { params: v.GenericSchema; permission?: Permission };
 
@@ -32,13 +32,13 @@ export const METHODS = {
     permission: 'fs.dialog',
   },
   'dialog.save': {
-    params: v.object({ suggestedName: v.optional(v.string()), filters }),
+    params: v.object({ suggestedName: v.optional(v.pipe(v.string(), v.maxLength(255))), filters }),
     permission: 'fs.dialog',
   },
   'dialog.message': {
     params: v.object({
-      title: v.string(),
-      text: v.string(),
+      title: v.pipe(v.string(), v.maxLength(200)),
+      text: v.pipe(v.string(), v.maxLength(10000)),
       icon: v.optional(v.picklist(['info', 'warning', 'error', 'question'])),
       buttons: v.optional(v.pipe(v.array(v.string()), v.minLength(1), v.maxLength(3))),
     }),

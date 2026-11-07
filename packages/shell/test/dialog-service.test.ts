@@ -31,7 +31,7 @@ test('resolves exactly once', async () => {
 
 test('message defaults buttons to OK; title and appName are sanitized and truncated', () => {
   const d = createDialogService();
-  void d.message({ title: `‮evil\u0007${'x'.repeat(300)}`, text: 't', appName: 'A‮p' });
+  void d.message({ title: `\u202Eevil\u0007${'x'.repeat(300)}`, text: 't', appName: 'A\u202Ep' });
   const req = d.active.value;
   if (req?.kind !== 'message') throw new Error('x');
   expect(req.buttons).toEqual(['OK']);

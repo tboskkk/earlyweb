@@ -21,12 +21,22 @@ export default defineConfig({
     { name: 'chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 } } },
     { name: 'webkit', use: { ...devices['Desktop Safari'], viewport: { width: 1280, height: 800 } } },
   ],
-  webServer: {
-    command: 'pnpm build:apps && pnpm dev:servers',
-    url: 'http://localhost:5173',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-    stdout: 'ignore',
-    stderr: 'pipe',
-  },
+  webServer: [
+    {
+      command:
+        'pnpm build:apps && node tools/app-server/src/cli.ts --root dist/apps --port 5174 --host 127.0.0.1',
+      url: 'http://127.0.0.1:5174/index.json',
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+      stdout: 'ignore',
+      stderr: 'pipe',
+    },
+    {
+      command: 'pnpm --filter @earlyweb/shell dev',
+      url: 'http://localhost:5173',
+      reuseExistingServer: !process.env.CI,
+      stdout: 'ignore',
+      stderr: 'pipe',
+    },
+  ],
 });

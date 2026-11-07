@@ -49,3 +49,43 @@ describe('startDrag', () => {
     expect(onEnd).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('startDrag robustness', () => {
+  const mk = () => {
+    const el = document.createElement('div');
+    (el as unknown as { setPointerCapture: () => void }).setPointerCapture = () => {};
+    document.body.append(el);
+    return el;
+  };
+
+  it('ends via a window-level pointerup when the target was removed mid-drag', () => {
+    const el = mk();
+    const onEnd = vi.fn();
+    startDrag(ptr('pointerdown', 0, 0, el), () => {}, onEnd);
+    expect(document.body.classList.contains('ew-dragging')).toBe(true);
+    el.remove();
+    window.dispatchEvent(new MouseEvent('pointerup'));
+    expect(document.body.classList.contains('ew-dragging')).toBe(false);
+    expect(onEnd).toHaveBeenCalledTimes(1);
+    window.dispatchEvent(new MouseEvent('pointerup'));
+    expect(onEnd).toHaveBeenCalledTimes(1);
+  });
+
+  it('ends once even if pointerup and lostpointercapture both fire', () => {
+    const el = mk();
+    const onEnd = vi.fn();
+    startDrag(ptr('pointerdown', 0, 0, el), () => {}, onEnd);
+    el.dispatchEvent(ptr('pointerup', 0, 0));
+    el.dispatchEvent(new Event('lostpointercapture'));
+    expect(onEnd).toHaveBeenCalledTimes(1);
+  });
+
+  it('ends on lostpointercapture alone', () => {
+    const el = mk();
+    const onEnd = vi.fn();
+    startDrag(ptr('pointerdown', 0, 0, el), () => {}, onEnd);
+    el.dispatchEvent(new Event('lostpointercapture'));
+    expect(document.body.classList.contains('ew-dragging')).toBe(false);
+    expect(onEnd).toHaveBeenCalledTimes(1);
+  });
+});

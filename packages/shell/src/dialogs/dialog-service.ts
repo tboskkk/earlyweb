@@ -75,10 +75,10 @@ const MAX_TEXT = 2000;
 export const armed = (r: DialogRequest): boolean => performance.now() - r.activatedAt >= CONFIRM_GUARD_MS;
 
 // Control and bidi override/isolate characters could spoof the dialog chrome.
-const UNSAFE = /[\p{Cc}‪-‮⁦-⁩]/gu;
+export const UNSAFE_CHARS = /[\p{Cc}\u202A-\u202E\u2066-\u2069]/gu;
 /** Message body: strips control (except newline/tab) and bidi characters, caps the length. */
 export function sanitizeText(s: string): string {
-  const clean = s.replace(/[\p{Cc}\u202A-\u202E\u2066-\u2069]/gu, (c) => (c === '\n' || c === '\t' ? c : ''));
+  const clean = s.replace(UNSAFE_CHARS, (c) => (c === '\n' || c === '\t' ? c : ''));
   return clean.length > MAX_TEXT ? `${clean.slice(0, MAX_TEXT - 1)}\u2026` : clean;
 }
 
@@ -90,7 +90,7 @@ export function cancelDialog(req: DialogRequest): void {
 }
 
 export function sanitizeLabel(s: string, max = 80): string {
-  const clean = s.replace(UNSAFE, '').trim();
+  const clean = s.replace(UNSAFE_CHARS, '').trim();
   return clean.length > max ? `${clean.slice(0, max - 1)}…` : clean;
 }
 

@@ -7,13 +7,13 @@ type Verdict = 'blocked' | 'LEAK';
 
 const os = await connect();
 
-/** 'blocked' only if touching the property throws. */
+/** 'blocked' only if touching the property throws a SecurityError DOMException (cross-origin / opaque origin access). */
 function throws(fn: () => unknown): Verdict {
   try {
     fn();
     return 'LEAK';
-  } catch {
-    return 'blocked';
+  } catch (e) {
+    return e instanceof DOMException && e.name === 'SecurityError' ? 'blocked' : 'LEAK';
   }
 }
 

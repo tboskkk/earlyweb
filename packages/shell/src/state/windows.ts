@@ -66,12 +66,24 @@ const fill = (vp: Viewport): Rect => ({ x: 0, y: 0, w: vp.width, h: vp.height - 
  * The viewport effect lives for the lifetime of the store (the shell is a
  * single page whose store is never torn down), so no dispose is exposed.
  */
+const MAX_Z = 10000;
+
 export function createWindowStore(viewport: Signal<Viewport>): WindowStore {
   const windows = signal<WindowState[]>([]);
   const focusedId = signal<string | null>(null);
   let opened = 0;
   let topZ = 0;
 
+  /** Keeps z far below the taskbar's z-index: compacts to 1..n (order preserved) once topZ passes the cap. */
+  const bumpZ = (): number => {
+    if (topZ >= MAX_Z) {
+      const order = [...windows.peek()].sort((a, b) => a.z - b.z);
+      const rank = new Map(order.map((w, i) => [w.id, i + 1]));
+      windows.value = windows.peek().map((w) => ({ ...w, z: rank.get(w.id) as number }));
+      topZ = order.length;
+    }
+    return ++topZ;
+  };
   const patch = (id: string, fn: (w: WindowState) => Partial<WindowState>) => {
     windows.value = windows.value.map((w) => (w.id === id ? { ...w, ...fn(w) } : w));
   };
@@ -106,6 +118,7 @@ export function createWindowStore(viewport: Signal<Viewport>): WindowStore {
       const vp = viewport.peek();
       const w = r.w ?? init.w;
       const pos = clampPos(r.x ?? off, r.y ?? off, w, vp);
+      const z = bumpZ();
       windows.value = [
         ...windows.peek(),
         {
@@ -120,7 +133,7 @@ export function createWindowStore(viewport: Signal<Viewport>): WindowStore {
           ...pos,
           w,
           h: r.h ?? init.h,
-          z: ++topZ,
+          z,
           state: 'normal',
           shown: false,
           notResponding: false,
@@ -138,7 +151,8 @@ export function createWindowStore(viewport: Signal<Viewport>): WindowStore {
       const w = find(id);
       if (!w) return;
       if (w.state === 'minimized') return this.restore(id);
-      patch(id, () => ({ z: ++topZ }));
+      const z = bumpZ();
+      patch(id, () => ({ z }));
       focusedId.value = id;
     },
     move(id, x, y) {
@@ -160,9 +174,10 @@ export function createWindowStore(viewport: Signal<Viewport>): WindowStore {
       const w = find(id);
       if (!w) return;
       const vp = viewport.peek();
+      const z = bumpZ();
       patch(id, (cur) => ({
         ...(cur.restoreRect ? { ...fill(vp), state: 'maximized' as const } : { state: 'normal' as const }),
-        z: ++topZ,
+        z,
       }));
       focusedId.value = id;
     },

@@ -73,6 +73,27 @@ test('bad params -> EINVAL and the handler is not invoked', async () => {
   expect(handler).not.toHaveBeenCalled();
 });
 
+test.each([
+  [
+    '1000 filters',
+    'dialog.open',
+    { filters: Array.from({ length: 1000 }, () => ({ name: 'n', extensions: ['txt'] })) },
+  ],
+  ['too many extensions', 'dialog.open', { filters: [{ name: 'n', extensions: Array(17).fill('a') }] }],
+  ['over-long filter name', 'dialog.open', { filters: [{ name: 'x'.repeat(101), extensions: [] }] }],
+  ['over-long extension', 'dialog.save', { filters: [{ name: 'n', extensions: ['x'.repeat(33)] }] }],
+  ['over-long suggestedName', 'dialog.save', { suggestedName: 'x'.repeat(256), filters: [] }],
+  ['over-long message title', 'dialog.message', { title: 'x'.repeat(201), text: 't' }],
+  ['over-long message text', 'dialog.message', { title: 't', text: 'x'.repeat(10001) }],
+])('oversize dialog params (%s) -> EINVAL and the handler is not invoked', async (_n, method, params) => {
+  const handler = vi.fn(async () => null);
+  const s = track(setup({ handlers: { [method]: handler }, permissions: ['fs.dialog'] }));
+  s.ch.port2.postMessage({ t: 'call', id: 1, method, params });
+  await s.settle();
+  expect(s.received[0]).toMatchObject({ ok: false, error: { code: 'EINVAL' } });
+  expect(handler).not.toHaveBeenCalled();
+});
+
 test('dialog.open without fs.dialog -> EPERM and the handler is not invoked', async () => {
   const handler = vi.fn(async () => null);
   const s = track(setup({ handlers: { 'dialog.open': handler } }));

@@ -1,7 +1,7 @@
 import type { FsBackend, FsStat } from '@earlyweb/backends';
 import { dirname, joinPath } from '@earlyweb/backends';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { armed, DEFAULT_DIR, type OpenRequest, type SaveRequest } from './dialog-service.ts';
+import { armed, DEFAULT_DIR, type OpenRequest, type SaveRequest, sanitizeLabel } from './dialog-service.ts';
 import { safeExts, validateSaveName } from './save-validation.ts';
 
 const ROOT = '/home/user';
@@ -263,7 +263,7 @@ export function FileDialog({ req, fs }: { req: OpenRequest | SaveRequest; fs: Fs
           >
             {req.filters.map((f, i) => (
               <option key={i} value={i}>
-                {f.name} ({f.extensions.join(', ')})
+                {sanitizeLabel(f.name, 60)} ({safeExts(f.extensions).join(', ')})
               </option>
             ))}
           </select>

@@ -23,7 +23,10 @@ export const FsEntrySchema = v.object({
 });
 export type FsEntry = v.InferOutput<typeof FsEntrySchema>;
 
-export const FileFilterSchema = v.object({ name: v.string(), extensions: v.array(v.string()) });
+export const FileFilterSchema = v.object({
+  name: v.pipe(v.string(), v.maxLength(100)),
+  extensions: v.pipe(v.array(v.pipe(v.string(), v.maxLength(32))), v.maxLength(16)),
+});
 export type FileFilter = v.InferOutput<typeof FileFilterSchema>;
 
 export const HelloMsgSchema = v.object({ ew: v.literal('hello'), protocol: v.number() });

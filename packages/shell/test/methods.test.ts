@@ -76,6 +76,7 @@ test('window.focus focuses and raises the caller window', async () => {
   const { store, open, ctxFor } = windows();
   const a = open(APP);
   const b = open('org.y.app');
+  store.update(a, { shown: true }); // only a shown (app.ready) window may take focus
   expect(store.focusedId.value).toBe(b);
   await windowHandlers(store)['window.focus']?.(ctxFor(APP, a), {});
   expect(store.focusedId.value).toBe(a);
@@ -187,4 +188,14 @@ test('window.setTitle strips control and bidi override characters; empty result 
   expect(store.windows.value.find((w) => w.id === a)?.title).toBe('Eviltxt.exe');
   await h?.(ctxFor(APP, a), { title: '\n\u202E ' });
   expect(store.windows.value.find((w) => w.id === a)?.title).toBe('Eviltxt.exe');
+});
+
+test('window.focus on a window that is not yet shown is a no-op', async () => {
+  const { store, open, ctxFor } = windows();
+  const a = open(APP);
+  const b = open('org.y.app');
+  const z = zOf(store, a);
+  await windowHandlers(store)['window.focus']?.(ctxFor(APP, a), {});
+  expect(store.focusedId.value).toBe(b);
+  expect(zOf(store, a)).toBe(z);
 });

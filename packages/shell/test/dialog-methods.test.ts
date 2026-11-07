@@ -203,7 +203,7 @@ test('dialog.message sanitizes the title and rejects a label that was not offere
     ),
   ).toBe('EINVAL');
   dialogs.message.mockResolvedValue('A');
-  await h['dialog.message']?.(ctx(), { title: '‮abc\u0007', text: 'x', buttons: ['A'] });
+  await h['dialog.message']?.(ctx(), { title: '\u202Eabc\u0007', text: 'x', buttons: ['A'] });
   expect(dialogs.message).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'abc' }));
 });
 

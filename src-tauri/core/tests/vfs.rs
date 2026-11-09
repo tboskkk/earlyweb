@@ -158,6 +158,34 @@ fn segment_rules() {
     }
 }
 
+#[test]
+fn windows_device_name_variants_are_rejected() {
+    let f = fixture();
+    for p in [
+        // Spaces before the extension still name the device on Windows.
+        "/home/user/con .txt",
+        "/home/user/NUL  .tar.gz",
+        "/home/user/aux ",
+        // Superscript digits and the console handles are reserved as well.
+        "/home/user/COM\u{b9}",
+        "/home/user/com\u{b2}.txt",
+        "/home/user/LPT\u{b3}",
+        "/home/user/CONIN$",
+        "/home/user/conout$.log",
+    ] {
+        let e = err_of(f.vfs.resolve(p));
+        assert_eq!(e.code, "EINVAL", "{p:?} should be EINVAL");
+    }
+    // Near misses stay valid.
+    for p in [
+        "/home/user/con x.txt",
+        "/home/user/conin.txt",
+        "/home/user/com\u{b9}0.txt",
+    ] {
+        assert!(f.vfs.resolve(p).is_ok(), "{p:?} should be accepted");
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn escaping_symlink_is_eperm() {

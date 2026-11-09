@@ -14,8 +14,37 @@ const HOME_KIDS: &[&str] = &["user"];
 const MAX_SEGMENT_BYTES: usize = 255;
 const BAD_CHARS: &[char] = &['\\', ':', '*', '?', '"', '<', '>', '|'];
 const RESERVED: &[&str] = &[
-    "con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8",
-    "com9", "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
+    "con",
+    "prn",
+    "aux",
+    "nul",
+    "com1",
+    "com2",
+    "com3",
+    "com4",
+    "com5",
+    "com6",
+    "com7",
+    "com8",
+    "com9",
+    "lpt1",
+    "lpt2",
+    "lpt3",
+    "lpt4",
+    "lpt5",
+    "lpt6",
+    "lpt7",
+    "lpt8",
+    "lpt9",
+    // Superscript digits and the console handles are reserved too (Microsoft's naming docs).
+    "com\u{b9}",
+    "com\u{b2}",
+    "com\u{b3}",
+    "lpt\u{b9}",
+    "lpt\u{b2}",
+    "lpt\u{b3}",
+    "conin$",
+    "conout$",
 ];
 
 /// What a virtual path points at.
@@ -157,8 +186,14 @@ fn check_segment(seg: &str) -> Result<(), FsError> {
     if seg.ends_with('.') || seg.ends_with(' ') {
         return bad("cannot end with a dot or a space".to_string());
     }
-    // Windows reserves these device names with any extension (`con.txt`, `com1.tar.gz`).
-    let stem = seg.split('.').next().unwrap_or(seg).to_lowercase();
+    // Windows reserves these device names with any extension (`con.txt`, `com1.tar.gz`),
+    // and ignores spaces between the name and the extension (`con .txt`).
+    let stem = seg
+        .split('.')
+        .next()
+        .unwrap_or(seg)
+        .trim_end_matches(' ')
+        .to_lowercase();
     if RESERVED.contains(&stem.as_str()) {
         return bad("reserved name on Windows".to_string());
     }

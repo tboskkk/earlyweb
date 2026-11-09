@@ -2,7 +2,15 @@ fn main() {
     // Every app command must be listed here; tauri-build then generates an
     // `allow-<command>` permission for it, which capabilities/shell.json grants to the
     // shell's window only. Commands not granted there cannot be invoked at all.
-    const COMMANDS: &[&str] = &[];
+    const COMMANDS: &[&str] = &[
+        "fs_stat",
+        "fs_list",
+        "fs_read",
+        "fs_write",
+        "fs_mkdir",
+        "fs_remove",
+        "fs_rename",
+    ];
     tauri_build::try_build(
         tauri_build::Attributes::new()
             .app_manifest(tauri_build::AppManifest::new().commands(COMMANDS)),

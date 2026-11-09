@@ -11,6 +11,9 @@ use std::path::{Path, PathBuf};
 
 const ROOT_KIDS: &[&str] = &["apps", "home", "system", "tmp"];
 const HOME_KIDS: &[&str] = &["user"];
+/// Prefix of the temporary files atomic writes use. Hidden from listings, and reserved:
+/// no user-visible name may start with it, so a real file is never mistaken for a leftover.
+pub(crate) const TEMP_PREFIX: &str = ".~ew-";
 const MAX_SEGMENT_BYTES: usize = 255;
 const BAD_CHARS: &[char] = &['\\', ':', '*', '?', '"', '<', '>', '|'];
 const RESERVED: &[&str] = &[
@@ -140,7 +143,7 @@ fn no_such(vpath: &str) -> FsError {
 /// Mirrors `normalizePath` in `packages/backends/src/path.ts`: the path must be absolute,
 /// `.` and empty segments vanish, and `..` pops one segment or, with nothing left to pop,
 /// is an error. Returns the remaining segments.
-fn normalize(p: &str) -> Result<Vec<String>, FsError> {
+pub(crate) fn normalize(p: &str) -> Result<Vec<String>, FsError> {
     if !p.starts_with('/') {
         return Err(FsError::new(
             "EINVAL",
@@ -164,7 +167,7 @@ fn normalize(p: &str) -> Result<Vec<String>, FsError> {
 
 /// A file name must be storable on Windows, macOS and Linux alike, so a home folder synced
 /// between machines stays valid. The message names the rule that was broken.
-fn check_segment(seg: &str) -> Result<(), FsError> {
+pub(crate) fn check_segment(seg: &str) -> Result<(), FsError> {
     let bad = |why: String| {
         Err(FsError::new(
             "EINVAL",
@@ -182,6 +185,11 @@ fn check_segment(seg: &str) -> Result<(), FsError> {
     }
     if let Some(c) = seg.chars().find(|c| BAD_CHARS.contains(c)) {
         return bad(format!("the character {c} is not allowed"));
+    }
+    if seg.starts_with(TEMP_PREFIX) {
+        return bad(format!(
+            "names starting with {TEMP_PREFIX} are reserved for EarlyWeb"
+        ));
     }
     if seg.ends_with('.') || seg.ends_with(' ') {
         return bad("cannot end with a dot or a space".to_string());

@@ -177,6 +177,90 @@
       "description": "Permission identifier",
       "oneOf": [
         {
+          "description": "Enables the fs_list command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-fs-list",
+          "markdownDescription": "Enables the fs_list command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the fs_mkdir command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-fs-mkdir",
+          "markdownDescription": "Enables the fs_mkdir command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the fs_read command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-fs-read",
+          "markdownDescription": "Enables the fs_read command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the fs_remove command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-fs-remove",
+          "markdownDescription": "Enables the fs_remove command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the fs_rename command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-fs-rename",
+          "markdownDescription": "Enables the fs_rename command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the fs_stat command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-fs-stat",
+          "markdownDescription": "Enables the fs_stat command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the fs_write command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-fs-write",
+          "markdownDescription": "Enables the fs_write command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the fs_list command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-fs-list",
+          "markdownDescription": "Denies the fs_list command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the fs_mkdir command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-fs-mkdir",
+          "markdownDescription": "Denies the fs_mkdir command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the fs_read command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-fs-read",
+          "markdownDescription": "Denies the fs_read command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the fs_remove command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-fs-remove",
+          "markdownDescription": "Denies the fs_remove command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the fs_rename command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-fs-rename",
+          "markdownDescription": "Denies the fs_rename command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the fs_stat command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-fs-stat",
+          "markdownDescription": "Denies the fs_stat command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the fs_write command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-fs-write",
+          "markdownDescription": "Denies the fs_write command without any pre-configured scope."
+        },
+        {
           "description": "Default core plugins set.\n#### This default permission set includes:\n\n- `core:path:default`\n- `core:event:default`\n- `core:window:default`\n- `core:webview:default`\n- `core:app:default`\n- `core:image:default`\n- `core:resources:default`\n- `core:menu:default`\n- `core:tray:default`",
           "type": "string",
           "const": "core:default",

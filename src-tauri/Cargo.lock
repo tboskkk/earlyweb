@@ -815,6 +815,7 @@ name = "earlyweb"
 version = "0.1.0"
 dependencies = [
  "earlyweb-core",
+ "percent-encoding",
  "serde",
  "serde_json",
  "tauri",

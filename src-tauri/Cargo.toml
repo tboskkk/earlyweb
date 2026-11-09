@@ -1,0 +1,33 @@
+[package]
+name = "earlyweb"
+version = "0.1.0"
+description = "EarlyWeb: a broadband-era internet desktop"
+license = "MIT"
+edition = "2021"
+publish = false
+
+[lib]
+name = "earlyweb_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[features]
+# Self-test build: the shell runs the hostile-app IPC check and Rust judges it (Task 7).
+e2e = []
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+earlyweb-core = { path = "core" }
+tauri = { version = "2", features = [] }
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[workspace]
+members = ["core"]
+
+[profile.release]
+codegen-units = 1
+lto = true
+strip = true

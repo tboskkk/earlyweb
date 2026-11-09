@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "shell",
+  "description": "The trusted shell. Local origin only (no `remote`), main window only: apps in iframes get nothing.",
+  "windows": ["main"],
+  "permissions": []
+}

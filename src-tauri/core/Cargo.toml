@@ -1,0 +1,11 @@
+[package]
+name = "earlyweb-core"
+version = "0.1.0"
+description = "EarlyWeb's security-relevant backend logic, with no Tauri dependency"
+license = "MIT"
+edition = "2021"
+publish = false
+
+[dependencies]
+
+[dev-dependencies]

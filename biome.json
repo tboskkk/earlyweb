@@ -7,7 +7,9 @@
       "!**/.superpowers",
       "!**/test-results",
       "!**/playwright-report",
-      "!pnpm-lock.yaml"
+      "!pnpm-lock.yaml",
+      "!src-tauri/target",
+      "!src-tauri/gen"
     ]
   },
   "formatter": { "indentStyle": "space", "indentWidth": 2, "lineWidth": 110 },

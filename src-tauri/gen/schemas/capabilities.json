@@ -1,0 +1,1 @@
+{"shell":{"identifier":"shell","description":"The trusted shell. Local origin only (no `remote`), main window only: apps in iframes get nothing.","local":true,"windows":["main"],"permissions":[]}}

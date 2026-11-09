@@ -3,13 +3,16 @@ import path from 'node:path';
 import { parseManifest } from '@earlyweb/protocol';
 import type { Plugin, UserConfig } from 'vite';
 
-/** Vite config for an EarlyWeb app: builds to <repo>/dist/apps/<id>/<version>/. */
+/** Vite config for an EarlyWeb app: builds to <repo>/<EW_APPS_OUT or dist/apps>/<id>/<version>/. */
 export function defineAppConfig(appDir: string): UserConfig {
   const dir = path.resolve(appDir);
   const manifestPath = path.join(dir, 'earlyweb.json');
   const manifest = parseManifest(JSON.parse(readFileSync(manifestPath, 'utf8')));
   const repoRoot = path.resolve(import.meta.dirname, '..', '..');
-  const outDir = path.join(repoRoot, 'dist', 'apps', manifest.id, manifest.version);
+  // EW_APPS_OUT (relative to the repo root) picks a different output root, e.g. the
+  // Tauri bundle's dist/bundle-apps; the default is the dev app server's dist/apps.
+  const outRoot = path.resolve(repoRoot, process.env.EW_APPS_OUT || path.join('dist', 'apps'));
+  const outDir = path.join(outRoot, manifest.id, manifest.version);
 
   const emitAssets: Plugin = {
     name: 'earlyweb-emit-assets',

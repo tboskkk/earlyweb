@@ -10,9 +10,11 @@ const { values } = parseArgs({
 });
 
 const shellOrigin = process.env.SHELL_ORIGIN ?? 'http://localhost:5173';
-const server = createAppServer({ root: values.root as string, shellOrigin });
+// Must match the shell's VITE_APP_ORIGIN exactly: the CSP names it.
+const appOrigin = process.env.APP_ORIGIN ?? `http://${values.host}:${values.port}`;
+const server = createAppServer({ root: values.root as string, shellOrigin, appOrigin });
 server.listen(Number(values.port), values.host as string, () => {
   console.log(
-    `app server: http://${values.host}:${values.port}/ (root ${values.root}, shell ${shellOrigin})`,
+    `app server: http://${values.host}:${values.port}/ (root ${values.root}, origin ${appOrigin}, shell ${shellOrigin})`,
   );
 });

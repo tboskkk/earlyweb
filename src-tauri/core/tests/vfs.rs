@@ -261,9 +261,7 @@ fn home_is_file_errors() {
     let tmp = tempfile::tempdir().unwrap();
     let home = tmp.path().join("EarlyWeb");
     fs::write(&home, "i am a file").unwrap();
-    let e = Vfs::new(home.clone(), tmp.path().join("data"))
-        .err()
-        .expect("must fail");
+    let e = Vfs::new(home.clone(), tmp.path().join("data")).expect_err("must fail");
     assert_eq!(e.code, "EINVAL");
     assert!(e.message.contains("is not a folder"), "{}", e.message);
     assert!(e.message.contains(home.to_str().unwrap()), "{}", e.message);
@@ -272,9 +270,7 @@ fn home_is_file_errors() {
     // Same for the data dir.
     let data = tmp.path().join("data-file");
     fs::write(&data, "x").unwrap();
-    let e = Vfs::new(tmp.path().join("fresh-home"), data)
-        .err()
-        .expect("must fail");
+    let e = Vfs::new(tmp.path().join("fresh-home"), data).expect_err("must fail");
     assert_eq!(e.code, "EINVAL");
 }
 

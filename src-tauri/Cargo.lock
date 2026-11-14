@@ -827,6 +827,9 @@ dependencies = [
 name = "earlyweb-core"
 version = "0.1.0"
 dependencies = [
+ "http",
+ "percent-encoding",
+ "regex",
  "serde",
  "serde_json",
  "tempfile",

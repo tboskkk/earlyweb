@@ -1,4 +1,5 @@
 mod commands;
+mod scheme;
 
 use commands::AppState;
 use earlyweb_core::{FsError, Kv, Vfs};
@@ -42,6 +43,7 @@ pub fn run() {
                 let _ = window.set_focus();
             }
         }))
+        .register_asynchronous_uri_scheme_protocol(scheme::SCHEME, scheme::handle)
         .setup(|app| {
             let places = locations(app.handle());
             let vfs = places.clone().and_then(|(home, data)| Vfs::new(home, data));

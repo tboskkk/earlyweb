@@ -1,0 +1,30 @@
+[
+  {
+    "name": "offline app, Linux/macOS release shell",
+    "network": [],
+    "shellOrigin": "tauri://localhost",
+    "appBase": "ewapp://localhost/org.earlyweb.notepad/0.1.0/",
+    "csp": "default-src 'self' ewapp://localhost/org.earlyweb.notepad/0.1.0/; script-src 'self' ewapp://localhost/org.earlyweb.notepad/0.1.0/ 'wasm-unsafe-eval'; style-src 'self' ewapp://localhost/org.earlyweb.notepad/0.1.0/ 'unsafe-inline'; img-src 'self' ewapp://localhost/org.earlyweb.notepad/0.1.0/ data: blob:; media-src 'self' ewapp://localhost/org.earlyweb.notepad/0.1.0/ blob:; connect-src 'self' ewapp://localhost/org.earlyweb.notepad/0.1.0/; frame-ancestors tauri://localhost"
+  },
+  {
+    "name": "networked app, Windows release shell",
+    "network": ["api.example.com", "*.cdn.example.org"],
+    "shellOrigin": "http://tauri.localhost",
+    "appBase": "http://ewapp.localhost/org.example.weather/1.2.0-beta.1/",
+    "csp": "default-src 'self' http://ewapp.localhost/org.example.weather/1.2.0-beta.1/; script-src 'self' http://ewapp.localhost/org.example.weather/1.2.0-beta.1/ 'wasm-unsafe-eval'; style-src 'self' http://ewapp.localhost/org.example.weather/1.2.0-beta.1/ 'unsafe-inline'; img-src 'self' http://ewapp.localhost/org.example.weather/1.2.0-beta.1/ data: blob:; media-src 'self' http://ewapp.localhost/org.example.weather/1.2.0-beta.1/ blob:; connect-src 'self' http://ewapp.localhost/org.example.weather/1.2.0-beta.1/ https://api.example.com https://*.cdn.example.org; frame-ancestors http://tauri.localhost"
+  },
+  {
+    "name": "offline app, dev server shell",
+    "network": [],
+    "shellOrigin": "http://localhost:5173",
+    "appBase": "ewapp://localhost/org.earlyweb.notepad/0.1.0/",
+    "csp": "default-src 'self' ewapp://localhost/org.earlyweb.notepad/0.1.0/; script-src 'self' ewapp://localhost/org.earlyweb.notepad/0.1.0/ 'wasm-unsafe-eval'; style-src 'self' ewapp://localhost/org.earlyweb.notepad/0.1.0/ 'unsafe-inline'; img-src 'self' ewapp://localhost/org.earlyweb.notepad/0.1.0/ data: blob:; media-src 'self' ewapp://localhost/org.earlyweb.notepad/0.1.0/ blob:; connect-src 'self' ewapp://localhost/org.earlyweb.notepad/0.1.0/; frame-ancestors http://localhost:5173"
+  },
+  {
+    "name": "offline app, M1 web app server",
+    "network": [],
+    "shellOrigin": "http://localhost:5173",
+    "appBase": "http://127.0.0.1:5174/org.earlyweb.notepad/0.1.0/",
+    "csp": "default-src 'self' http://127.0.0.1:5174/org.earlyweb.notepad/0.1.0/; script-src 'self' http://127.0.0.1:5174/org.earlyweb.notepad/0.1.0/ 'wasm-unsafe-eval'; style-src 'self' http://127.0.0.1:5174/org.earlyweb.notepad/0.1.0/ 'unsafe-inline'; img-src 'self' http://127.0.0.1:5174/org.earlyweb.notepad/0.1.0/ data: blob:; media-src 'self' http://127.0.0.1:5174/org.earlyweb.notepad/0.1.0/ blob:; connect-src 'self' http://127.0.0.1:5174/org.earlyweb.notepad/0.1.0/; frame-ancestors http://localhost:5173"
+  }
+]

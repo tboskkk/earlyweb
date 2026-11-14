@@ -89,7 +89,7 @@ fn is_missing(e: &io::Error) -> bool {
 
 /// Writes to a hidden temp file in the same folder, flushes it to disk, then renames it over
 /// the target. A crash leaves either the old file or the new one, never a torn mix.
-fn atomic_write(target: &Path, data: &[u8]) -> Result<(), FsError> {
+pub(crate) fn atomic_write(target: &Path, data: &[u8]) -> Result<(), FsError> {
     let dir = target
         .parent()
         .ok_or_else(|| FsError::new("EINVAL", "path has no parent folder"))?;

@@ -72,7 +72,7 @@ pub struct Vfs {
     tmp: PathBuf,
 }
 
-fn ensure_folder(p: &Path) -> Result<(), FsError> {
+pub(crate) fn ensure_folder(p: &Path) -> Result<(), FsError> {
     match fs::metadata(p) {
         Ok(m) if !m.is_dir() => Err(FsError::new(
             "EINVAL",

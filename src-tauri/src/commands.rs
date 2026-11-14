@@ -2,16 +2,19 @@
 //! crate; these only move bytes and errors across the IPC boundary. Only the shell's main
 //! window may call them (see `capabilities/shell.json`).
 
-use earlyweb_core::{FsError, FsStat, Vfs};
+use earlyweb_core::{FsError, FsStat, Kv, Vfs};
 use percent_encoding::percent_decode_str;
+use serde_json::Value;
 use tauri::ipc::{InvokeBody, Request, Response};
 use tauri::State;
 
 /// Shared app state. `vfs` is an `Err` when the home folder could not be set up (for
 /// example `~/EarlyWeb` exists as a plain file): every fs command then returns that error,
-/// and the shell shows it as the boot error instead of the app crashing.
+/// and the shell shows it as the boot error instead of the app crashing. `kv` follows the
+/// same rule for the saved-state folder (`<data>/state`).
 pub struct AppState {
     pub vfs: Result<Vfs, FsError>,
+    pub kv: Result<Kv, FsError>,
 }
 
 /// Runs blocking file work off the async runtime, so a big read or write never stalls IPC.
@@ -21,7 +24,15 @@ where
     F: FnOnce(Vfs) -> Result<T, FsError> + Send + 'static,
 {
     let vfs = state.vfs.clone()?;
-    tauri::async_runtime::spawn_blocking(move || f(vfs))
+    off_thread(move || f(vfs)).await
+}
+
+async fn off_thread<T, F>(f: F) -> Result<T, FsError>
+where
+    T: Send + 'static,
+    F: FnOnce() -> Result<T, FsError> + Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(f)
         .await
         .map_err(|e| FsError::new("EINVAL", format!("file task failed: {e}")))?
 }
@@ -78,4 +89,22 @@ pub async fn fs_rename(
     to: String,
 ) -> Result<(), FsError> {
     blocking(&state, move |v| v.rename(&from, &to)).await
+}
+
+#[tauri::command]
+pub async fn kv_get(state: State<'_, AppState>, key: String) -> Result<Option<Value>, FsError> {
+    let kv = state.kv.clone()?;
+    off_thread(move || kv.get(&key)).await
+}
+
+#[tauri::command]
+pub async fn kv_set(state: State<'_, AppState>, key: String, value: Value) -> Result<(), FsError> {
+    let kv = state.kv.clone()?;
+    off_thread(move || kv.set(&key, &value)).await
+}
+
+#[tauri::command]
+pub async fn kv_delete(state: State<'_, AppState>, key: String) -> Result<(), FsError> {
+    let kv = state.kv.clone()?;
+    off_thread(move || kv.delete(&key)).await
 }

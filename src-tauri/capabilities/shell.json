@@ -10,6 +10,9 @@
     "allow-fs-write",
     "allow-fs-mkdir",
     "allow-fs-remove",
-    "allow-fs-rename"
+    "allow-fs-rename",
+    "allow-kv-get",
+    "allow-kv-set",
+    "allow-kv-delete"
   ]
 }

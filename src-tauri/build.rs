@@ -10,6 +10,9 @@ fn main() {
         "fs_mkdir",
         "fs_remove",
         "fs_rename",
+        "kv_get",
+        "kv_set",
+        "kv_delete",
     ];
     tauri_build::try_build(
         tauri_build::Attributes::new()

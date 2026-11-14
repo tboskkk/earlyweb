@@ -329,12 +329,24 @@ fn writing_through_an_inside_symlink_keeps_the_link() {
 // Files copied in from outside with names EarlyWeb can't show (e.g. `a:b.txt` on Linux)
 // are invisible in listings; deleting their folder must not silently delete them.
 
+/// A name the host OS can store but EarlyWeb hides. Windows can't store `:` at all (NTFS
+/// reads it as an alternate data stream), so there it is a name over 255 UTF-8 bytes
+/// (130 UTF-16 units, which NTFS allows).
+fn hidden_name() -> String {
+    if cfg!(windows) {
+        format!("{}.log", "é".repeat(130))
+    } else {
+        "build 10:30.log".to_string()
+    }
+}
+
 #[test]
 fn remove_refuses_folder_with_hidden_names() {
     let f = fx();
     let dir = f.home.join("Documents").join("Logs");
+    let hidden = hidden_name();
     fs::create_dir_all(dir.join("sub")).unwrap();
-    fs::write(dir.join("sub").join("build 10:30.log"), "keep me").unwrap();
+    fs::write(dir.join("sub").join(&hidden), "keep me").unwrap();
     assert_eq!(
         names(&f.vfs, "/home/user/Documents/Logs/sub"),
         Vec::<String>::new()
@@ -346,9 +358,9 @@ fn remove_refuses_folder_with_hidden_names() {
         .expect_err("must refuse");
     assert_eq!(err.code, "EPERM");
     assert!(err.message.contains("can't show"), "{}", err.message);
-    assert!(err.message.contains("build 10:30.log"), "{}", err.message);
+    assert!(err.message.contains(&hidden), "{}", err.message);
     assert_eq!(
-        fs::read_to_string(dir.join("sub").join("build 10:30.log")).unwrap(),
+        fs::read_to_string(dir.join("sub").join(&hidden)).unwrap(),
         "keep me"
     );
 }

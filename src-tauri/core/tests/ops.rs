@@ -324,3 +324,53 @@ fn writing_through_an_inside_symlink_keeps_the_link() {
         .unwrap()
         .is_symlink());
 }
+
+// --- removing folders that hold entries `list` hides ----------------------------------
+// Files copied in from outside with names EarlyWeb can't show (e.g. `a:b.txt` on Linux)
+// are invisible in listings; deleting their folder must not silently delete them.
+
+#[test]
+fn remove_refuses_folder_with_hidden_names() {
+    let f = fx();
+    let dir = f.home.join("Documents").join("Logs");
+    fs::create_dir_all(dir.join("sub")).unwrap();
+    fs::write(dir.join("sub").join("build 10:30.log"), "keep me").unwrap();
+    assert_eq!(
+        names(&f.vfs, "/home/user/Documents/Logs/sub"),
+        Vec::<String>::new()
+    );
+
+    let err = f
+        .vfs
+        .remove("/home/user/Documents/Logs")
+        .expect_err("must refuse");
+    assert_eq!(err.code, "EPERM");
+    assert!(err.message.contains("can't show"), "{}", err.message);
+    assert!(err.message.contains("build 10:30.log"), "{}", err.message);
+    assert_eq!(
+        fs::read_to_string(dir.join("sub").join("build 10:30.log")).unwrap(),
+        "keep me"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn remove_refuses_folder_with_escaping_symlink() {
+    let f = fx();
+    let dir = f.home.join("Documents").join("d");
+    fs::create_dir_all(&dir).unwrap();
+    std::os::unix::fs::symlink(&f.data, dir.join("out")).unwrap();
+    assert_eq!(code(f.vfs.remove("/home/user/Documents/d")), "EPERM");
+    assert!(fs::symlink_metadata(dir.join("out")).is_ok());
+}
+
+#[test]
+fn remove_ignores_own_temp_leftovers() {
+    let f = fx();
+    let dir = f.home.join("Documents").join("d");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join(".~ew-123-456-0.tmp"), "half a save").unwrap();
+    fs::write(dir.join("ok.txt"), "x").unwrap();
+    f.vfs.remove("/home/user/Documents/d").unwrap();
+    assert!(!dir.exists());
+}

@@ -14,7 +14,10 @@
     "allow-kv-get",
     "allow-kv-set",
     "allow-kv-delete",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
     "allow-update-install",
+    "allow-e2e-ping",
     "allow-e2e-canary",
     "allow-e2e-report"
   ]

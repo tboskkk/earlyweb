@@ -183,6 +183,12 @@
           "markdownDescription": "Enables the e2e_canary command without any pre-configured scope."
         },
         {
+          "description": "Enables the e2e_ping command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-e2e-ping",
+          "markdownDescription": "Enables the e2e_ping command without any pre-configured scope."
+        },
+        {
           "description": "Enables the e2e_report command without any pre-configured scope.",
           "type": "string",
           "const": "allow-e2e-report",
@@ -259,6 +265,12 @@
           "type": "string",
           "const": "deny-e2e-canary",
           "markdownDescription": "Denies the e2e_canary command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the e2e_ping command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-e2e-ping",
+          "markdownDescription": "Denies the e2e_ping command without any pre-configured scope."
         },
         {
           "description": "Denies the e2e_report command without any pre-configured scope.",

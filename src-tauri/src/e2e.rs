@@ -1,8 +1,8 @@
 //! The IPC self-test (`--features e2e` only; never in a release build). The shell writes
 //! a canary file, launches a hostile app that tries every way to reach Tauri IPC, and
 //! reports the app's verdict through `e2e_report`. Rust is the judge: the run passes only
-//! if the app says `blocked`, the canary on disk still holds the token, and nothing ever
-//! read or stat-ed it. The process exit code is the result (0 pass, 1 fail, 3 watchdog).
+//! if the app says `blocked`, the shell received an event from Rust (`e2e_ping`), the
+//! canary on disk still holds the token, and nothing ever read or stat-ed it. The process exit code is the result (0 pass, 1 fail, 3 watchdog).
 
 use crate::commands::AppState;
 use earlyweb_core::{FsError, Node};
@@ -11,7 +11,7 @@ use std::io::Write;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::OnceLock;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tauri::State;
+use tauri::{AppHandle, Emitter, Runtime, State};
 
 pub const CANARY: &str = "/home/user/Documents/canary.txt";
 const WATCHDOG: Duration = Duration::from_secs(90);
@@ -65,6 +65,16 @@ pub fn start_watchdog() {
     });
 }
 
+/// Emits [`PING_EVENT`] to the shell, which must receive it through `listen` (the same
+/// path the update prompt uses), proving the capability allows Rust -> shell events.
+const PING_EVENT: &str = "ew://selftest-ping";
+
+#[tauri::command]
+pub fn e2e_ping<R: Runtime>(app: AppHandle<R>) -> Result<(), FsError> {
+    app.emit_to("main", PING_EVENT, "pong")
+        .map_err(|e| FsError::new("EINVAL", format!("emit failed: {e}")))
+}
+
 #[tauri::command]
 pub fn e2e_canary() -> String {
     state().token.clone()
@@ -79,12 +89,17 @@ fn canary_on_disk(app_state: &AppState) -> Result<bool, FsError> {
 }
 
 #[tauri::command]
-pub fn e2e_report(app_state: State<'_, AppState>, app: String) {
+pub fn e2e_report(app_state: State<'_, AppState>, app: String, events: bool) {
     let file_on_disk = canary_on_disk(&app_state).unwrap_or(false);
     let reads = state().canary_reads.load(Ordering::SeqCst);
-    let line = serde_json::json!({ "app": app, "fileOnDisk": file_on_disk, "canaryReads": reads });
+    let line = serde_json::json!({
+        "app": app,
+        "events": events,
+        "fileOnDisk": file_on_disk,
+        "canaryReads": reads,
+    });
     println!("EW-SELFTEST {line}");
     let _ = std::io::stdout().flush();
-    let pass = app == "blocked" && file_on_disk && reads == 0;
+    let pass = app == "blocked" && events && file_on_disk && reads == 0;
     std::process::exit(if pass { 0 } else { 1 });
 }

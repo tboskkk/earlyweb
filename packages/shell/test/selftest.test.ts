@@ -1,7 +1,7 @@
 import type { FsBackend, Invoke } from '@earlyweb/backends';
 import { signal } from '@preact/signals';
 import { afterEach, expect, test, vi } from 'vitest';
-import { CANARY_PATH, HOSTILE_IPC_APP, runSelftest, waitForTitle } from '../src/selftest.ts';
+import { CANARY_PATH, HOSTILE_IPC_APP, PING_EVENT, runSelftest, waitForTitle } from '../src/selftest.ts';
 import { createWindowStore, type WindowStore } from '../src/state/windows.ts';
 
 afterEach(() => vi.useRealTimers());
@@ -69,9 +69,18 @@ type Call = { cmd: string; args: unknown };
 function fakes(store: WindowStore, resultTitle: string | null) {
   const calls: Call[] = [];
   const fsCalls: { op: string; path: string; text?: string }[] = [];
+  const listeners = new Map<string, (payload: unknown) => void>();
   const invoke: Invoke = async (cmd, args) => {
     calls.push({ cmd, args });
+    // Rust answers a ping by emitting the event back to the shell.
+    if (cmd === 'e2e_ping') queueMicrotask(() => listeners.get(PING_EVENT)?.('pong'));
     return cmd === 'e2e_canary' ? 'tok-123' : null;
+  };
+  let listenFails = false;
+  const onEvent = async (name: string, cb: (payload: unknown) => void) => {
+    if (listenFails) throw new Error('plugin:event|listen not allowed by ACL');
+    listeners.set(name, cb);
+    return () => listeners.delete(name);
   };
   const fs = {
     write: async (path: string, blob: Blob) => {
@@ -95,16 +104,28 @@ function fakes(store: WindowStore, resultTitle: string | null) {
       return 'inst';
     },
   };
-  return { calls, fsCalls, invoke, fs, launcher, launched };
+  return {
+    calls,
+    fsCalls,
+    invoke,
+    onEvent,
+    fs,
+    launcher,
+    launched,
+    failListen: () => {
+      listenFails = true;
+    },
+  };
 }
 
 test('runSelftest writes the canary and reports the title', async () => {
   const store = newStore();
   const f = fakes(store, 'RESULT blocked');
-  await runSelftest({ fs: f.fs, invoke: f.invoke, launcher: f.launcher, store });
+  await runSelftest({ fs: f.fs, invoke: f.invoke, onEvent: f.onEvent, launcher: f.launcher, store });
   expect(f.calls).toEqual([
+    { cmd: 'e2e_ping', args: undefined },
     { cmd: 'e2e_canary', args: undefined },
-    { cmd: 'e2e_report', args: { app: 'blocked' } },
+    { cmd: 'e2e_report', args: { app: 'blocked', events: true } },
   ]);
   // Exactly one write of the token to the canary, and the shell never reads it back.
   expect(f.fsCalls).toEqual([{ op: 'write', path: CANARY_PATH, text: 'tok-123' }]);
@@ -114,16 +135,39 @@ test('runSelftest writes the canary and reports the title', async () => {
 test('a leak verdict is passed through unchanged', async () => {
   const store = newStore();
   const f = fakes(store, 'RESULT LEAK:internalsInvoke,popup');
-  await runSelftest({ fs: f.fs, invoke: f.invoke, launcher: f.launcher, store });
-  expect(f.calls.at(-1)).toEqual({ cmd: 'e2e_report', args: { app: 'LEAK:internalsInvoke,popup' } });
+  await runSelftest({ fs: f.fs, invoke: f.invoke, onEvent: f.onEvent, launcher: f.launcher, store });
+  expect(f.calls.at(-1)).toEqual({
+    cmd: 'e2e_report',
+    args: { app: 'LEAK:internalsInvoke,popup', events: true },
+  });
 });
 
 test('no result in time reports timeout', async () => {
   vi.useFakeTimers();
   const store = newStore();
   const f = fakes(store, null);
-  const done = runSelftest({ fs: f.fs, invoke: f.invoke, launcher: f.launcher, store });
+  const done = runSelftest({ fs: f.fs, invoke: f.invoke, onEvent: f.onEvent, launcher: f.launcher, store });
   await vi.advanceTimersByTimeAsync(60_001);
   await done;
-  expect(f.calls.at(-1)).toEqual({ cmd: 'e2e_report', args: { app: 'timeout' } });
+  expect(f.calls.at(-1)).toEqual({ cmd: 'e2e_report', args: { app: 'timeout', events: true } });
+});
+
+// The update prompt depends on Rust -> shell events; a missing event permission must fail the run.
+test('events are reported false when listening is refused', async () => {
+  const store = newStore();
+  const f = fakes(store, 'RESULT blocked');
+  f.failListen();
+  await runSelftest({ fs: f.fs, invoke: f.invoke, onEvent: f.onEvent, launcher: f.launcher, store });
+  expect(f.calls.at(-1)).toEqual({ cmd: 'e2e_report', args: { app: 'blocked', events: false } });
+});
+
+test('events are reported false when the ping never arrives', async () => {
+  vi.useFakeTimers();
+  const store = newStore();
+  const f = fakes(store, 'RESULT blocked');
+  const silent = async () => () => {};
+  const done = runSelftest({ fs: f.fs, invoke: f.invoke, onEvent: silent, launcher: f.launcher, store });
+  await vi.advanceTimersByTimeAsync(10_000);
+  await done;
+  expect(f.calls.at(-1)).toEqual({ cmd: 'e2e_report', args: { app: 'blocked', events: false } });
 });

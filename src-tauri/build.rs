@@ -16,6 +16,7 @@ fn main() {
         "update_install",
         // Self-test commands: listed and granted always, registered only with the `e2e`
         // feature (src/lib.rs), so a release build has no handler for them.
+        "e2e_ping",
         "e2e_canary",
         "e2e_report",
     ];

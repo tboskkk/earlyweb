@@ -8,7 +8,7 @@ on:
     tags: ["v*"]
 
 permissions:
-  contents: write
+  contents: read
 
 # Every action is pinned to a commit: this workflow holds the update-signing key, and a
 # moved tag on any action could exfiltrate it and sign a malicious update. For the same
@@ -28,10 +28,16 @@ jobs:
             exit 1
           fi
 
+  # Builds run one at a time into a draft release: tauri-action merges each platform into
+  # latest.json, and parallel jobs would race on that file and on creating the release.
+  # Nothing is public until `publish` has checked every platform is there.
   build:
     needs: check
+    permissions:
+      contents: write
     strategy:
-      fail-fast: false
+      fail-fast: true
+      max-parallel: 1
       matrix:
         include:
           - os: ubuntu-22.04
@@ -86,7 +92,28 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: EarlyWeb ${{ github.ref_name }}
           releaseBody: See the README for install steps.
-          releaseDraft: false
+          releaseDraft: true
           prerelease: false
           includeUpdaterJson: true
           args: ${{ matrix.args }}
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: latest.json lists every platform
+        run: |
+          gh release download "$GITHUB_REF_NAME" --pattern latest.json --dir "$RUNNER_TEMP"
+          for p in linux-x86_64 windows-x86_64 darwin-aarch64 darwin-x86_64; do
+            if ! jq -e --arg p "$p" '.platforms[$p].signature | length > 0' "$RUNNER_TEMP/latest.json" > /dev/null; then
+              echo "::error::latest.json has no signed entry for $p"
+              exit 1
+            fi
+          done
+      - name: Publish the release
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false --latest

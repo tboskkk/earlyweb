@@ -81,6 +81,8 @@ pub fn run() {
             commands::kv_delete,
             update::update_install,
             #[cfg(feature = "e2e")]
+            e2e::e2e_ping,
+            #[cfg(feature = "e2e")]
             e2e::e2e_canary,
             #[cfg(feature = "e2e")]
             e2e::e2e_report,

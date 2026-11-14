@@ -11,6 +11,39 @@ export const CANARY_PATH = '/home/user/Documents/canary.txt';
 export const HOSTILE_IPC_APP = 'test.earlyweb.hostile-ipc';
 const RESULT_PREFIX = 'RESULT ';
 const RESULT_TIMEOUT_MS = 60_000;
+/** Rust emits this back when the shell invokes `e2e_ping`: proves Rust -> shell events
+ * (which the update prompt relies on) are allowed by the shell's capability. */
+export const PING_EVENT = 'ew://selftest-ping';
+const PING_TIMEOUT_MS = 5000;
+
+type OnEvent = (name: string, cb: (payload: unknown) => void) => Promise<() => void>;
+
+/** True only if the shell can subscribe and Rust's event actually arrives. */
+async function eventsWork(invoke: Invoke, onEvent: OnEvent): Promise<boolean> {
+  let unlisten = () => {};
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const arrived = new Promise<boolean>((resolve) => {
+      timer = setTimeout(() => resolve(false), PING_TIMEOUT_MS);
+      onEvent(PING_EVENT, () => resolve(true))
+        .then(
+          (u) => {
+            unlisten = u;
+            return invoke('e2e_ping');
+          },
+          (err) => {
+            console.error('selftest: cannot listen for events', err);
+            resolve(false);
+          },
+        )
+        .catch(() => resolve(false));
+    });
+    return await arrived;
+  } finally {
+    clearTimeout(timer);
+    unlisten();
+  }
+}
 
 /** The first title of a window of `appId` that starts with `prefix`. */
 export function waitForTitle(
@@ -38,9 +71,11 @@ export function waitForTitle(
 export async function runSelftest(p: {
   fs: FsBackend;
   invoke: Invoke;
+  onEvent: OnEvent;
   launcher: Pick<ReturnType<typeof createLauncher>, 'launch'>;
   store: WindowStore;
 }): Promise<void> {
+  const events = await eventsWork(p.invoke, p.onEvent);
   const token = String(await p.invoke('e2e_canary'));
   // Written, never read: any read of the canary counts against the run.
   await p.fs.write(CANARY_PATH, new Blob([token]));
@@ -52,5 +87,5 @@ export async function runSelftest(p: {
   } catch {
     app = 'timeout';
   }
-  await p.invoke('e2e_report', { app });
+  await p.invoke('e2e_report', { app, events });
 }

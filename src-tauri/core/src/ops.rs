@@ -7,7 +7,7 @@ use crate::vfs::{check_segment, normalize, Node, Vfs, TEMP_PREFIX};
 use serde::Serialize;
 use std::fs;
 use std::io::{self, ErrorKind, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -89,6 +89,33 @@ fn is_missing(e: &io::Error) -> bool {
 
 /// Writes to a hidden temp file in the same folder, flushes it to disk, then renames it over
 /// the target. A crash leaves either the old file or the new one, never a torn mix.
+/// The first entry under `dir` (not following links) that `list` would hide, apart from
+/// EarlyWeb's own temp files: a name that fails `check_segment` or isn't UTF-8, or a link
+/// that is dangling or leads outside `root`.
+fn first_hidden(root: &Path, dir: &Path) -> Result<Option<PathBuf>, FsError> {
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        let shown = match entry.file_name().to_str() {
+            Some(name) if name.starts_with(TEMP_PREFIX) => continue,
+            Some(name) => check_segment(name).is_ok(),
+            None => false,
+        };
+        let kind = entry.file_type()?;
+        let inside =
+            !kind.is_symlink() || path.canonicalize().is_ok_and(|real| real.starts_with(root));
+        if !shown || !inside {
+            return Ok(Some(path));
+        }
+        if kind.is_dir() {
+            if let Some(found) = first_hidden(root, &path)? {
+                return Ok(Some(found));
+            }
+        }
+    }
+    Ok(None)
+}
+
 pub(crate) fn atomic_write(target: &Path, data: &[u8]) -> Result<(), FsError> {
     let dir = target
         .parent()
@@ -253,10 +280,13 @@ impl Vfs {
     }
 
     /// Removes a file or a whole folder tree. A symlink is removed itself, never followed.
+    /// A folder holding anything `list` hides (names EarlyWeb can't store, links leading
+    /// outside the root) is refused: the user never saw those files, so deleting the folder
+    /// must not delete them. EarlyWeb's own temp leftovers don't count.
     pub fn remove(&self, vpath: &str) -> Result<(), FsError> {
         let (vp, _) = vstring(vpath)?;
         let cannot = || FsError::new("EINVAL", format!("cannot remove {vp}"));
-        let Node::Real { path, .. } = self.resolve(vpath)? else {
+        let Node::Real { path, root, .. } = self.resolve(vpath)? else {
             return Err(cannot());
         };
         if vp == "/home/user" {
@@ -267,6 +297,13 @@ impl Vfs {
             // Windows needs remove_dir for a link to a folder.
             fs::remove_file(&path).or_else(|_| fs::remove_dir(&path))?;
         } else if meta.is_dir() {
+            if let Some(hidden) = first_hidden(&root, &path)? {
+                let rel = hidden.strip_prefix(&path).unwrap_or(&hidden).display();
+                return Err(FsError::new(
+                    "EPERM",
+                    format!("cannot remove {vp}: it contains files EarlyWeb can't show ({rel})"),
+                ));
+            }
             fs::remove_dir_all(&path)?;
         } else {
             fs::remove_file(&path)?;

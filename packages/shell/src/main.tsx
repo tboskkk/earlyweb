@@ -49,10 +49,10 @@ async function boot() {
   // Rust announces a newer release it found; the user picks when to download and restart.
   const { invoke, onEvent } = platform;
   if (invoke && onEvent) {
-    void onEvent('ew://update-available', (payload) => {
+    onEvent('ew://update-available', (payload) => {
       const version = (payload as { version?: unknown } | null)?.version;
       if (typeof version === 'string') void onUpdateAvailable(version, { dialogs, invoke });
-    });
+    }).catch((err) => console.error('cannot listen for updates', err));
   }
 
   const catalog = signal<CatalogEntry[]>([]);
@@ -171,10 +171,10 @@ async function boot() {
         },
       });
       // Desktop self-test builds only (`--features e2e` injects the flag into this frame).
-      const invoke = platform.invoke;
+      const { invoke, onEvent } = platform;
       const selftest = (window as { __EW_SELFTEST__?: unknown }).__EW_SELFTEST__ === true;
-      if (platform.kind === 'tauri' && invoke && selftest) {
-        await runSelftest({ fs, invoke, launcher, store }).catch((err) =>
+      if (platform.kind === 'tauri' && invoke && onEvent && selftest) {
+        await runSelftest({ fs, invoke, onEvent, launcher, store }).catch((err) =>
           invoke('e2e_report', { app: `error: ${err instanceof Error ? err.message : String(err)}` }),
         );
       }

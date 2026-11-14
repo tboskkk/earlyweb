@@ -18,18 +18,24 @@ export type Platform = {
   appOrigin: string;
   /** Raw Tauri command access; only present in the desktop app. */
   invoke?: Invoke;
+  /** Subscribes to an event emitted by Rust; resolves to an unsubscribe. Desktop app only. */
+  onEvent?: (name: string, cb: (payload: unknown) => void) => Promise<() => void>;
 };
 
 export async function createPlatform(win: Window = window): Promise<Platform> {
   if ('__TAURI_INTERNALS__' in win) {
     // Loaded on demand so the web build never pulls in Tauri's runtime glue.
-    const { invoke, convertFileSrc } = await import('@tauri-apps/api/core');
+    const [{ invoke, convertFileSrc }, { listen }] = await Promise.all([
+      import('@tauri-apps/api/core'),
+      import('@tauri-apps/api/event'),
+    ]);
     return {
       kind: 'tauri',
       fs: createTauriFs(invoke),
       kv: createTauriKv(invoke),
       appOrigin: convertFileSrc('', 'ewapp').replace(/\/$/, ''),
       invoke,
+      onEvent: (name, cb) => listen(name, (e) => cb(e.payload)),
     };
   }
   const [fs, kv] = await Promise.all([createIdbFs(), createIdbKv()]);

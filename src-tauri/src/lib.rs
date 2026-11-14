@@ -2,6 +2,7 @@ mod commands;
 #[cfg(feature = "e2e")]
 mod e2e;
 mod scheme;
+mod update;
 
 use commands::AppState;
 use earlyweb_core::{FsError, Kv, Vfs};
@@ -48,6 +49,8 @@ pub fn run() {
     #[cfg(feature = "e2e")]
     let builder = builder.plugin(e2e::plugin());
     let result = builder
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(update::PendingUpdate::default())
         .register_asynchronous_uri_scheme_protocol(scheme::SCHEME, scheme::handle)
         .setup(|app| {
             let places = locations(app.handle());
@@ -60,6 +63,7 @@ pub fn run() {
                 eprintln!("EarlyWeb saved state unavailable: {e}");
             }
             app.manage(AppState { vfs, kv });
+            update::spawn_check(app.handle());
             #[cfg(feature = "e2e")]
             e2e::start_watchdog();
             Ok(())
@@ -75,6 +79,7 @@ pub fn run() {
             commands::kv_get,
             commands::kv_set,
             commands::kv_delete,
+            update::update_install,
             #[cfg(feature = "e2e")]
             e2e::e2e_canary,
             #[cfg(feature = "e2e")]

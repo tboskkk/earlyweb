@@ -14,6 +14,7 @@
     "allow-kv-get",
     "allow-kv-set",
     "allow-kv-delete",
+    "allow-update-install",
     "allow-e2e-canary",
     "allow-e2e-report"
   ]

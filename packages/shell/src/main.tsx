@@ -25,6 +25,7 @@ import { loadSession, restoreSession, saveSession, snapshot } from './state/sess
 import { createSessionSaver } from './state/session-saver.ts';
 import { createWindowStore } from './state/windows.ts';
 import { Desktop } from './ui/Desktop.tsx';
+import { onUpdateAvailable } from './update-prompt.ts';
 
 applyTheme(glass);
 
@@ -44,6 +45,15 @@ async function boot() {
   // saver is defined below; the hook is only invoked later.
   if (import.meta.env.DEV)
     (window as unknown as { __ew?: unknown }).__ew = { dialogs, sessionIdle: () => saver.idle() };
+
+  // Rust announces a newer release it found; the user picks when to download and restart.
+  const { invoke, onEvent } = platform;
+  if (invoke && onEvent) {
+    void onEvent('ew://update-available', (payload) => {
+      const version = (payload as { version?: unknown } | null)?.version;
+      if (typeof version === 'string') void onUpdateAvailable(version, { dialogs, invoke });
+    });
+  }
 
   const catalog = signal<CatalogEntry[]>([]);
   // false when the catalog failed to load: then saving stays disabled so the stored

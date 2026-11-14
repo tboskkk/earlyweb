@@ -3,7 +3,9 @@ import http from 'node:http';
 import path from 'node:path';
 import { appCsp, type Manifest, parseManifest } from '@earlyweb/protocol';
 
-export type AppServerOptions = { root: string; shellOrigin: string };
+/** `appOrigin` is the origin the shell loads apps from (e.g. `http://127.0.0.1:5174`);
+ * each app's CSP names its own folder under it. */
+export type AppServerOptions = { root: string; shellOrigin: string; appOrigin: string };
 
 const TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -60,6 +62,7 @@ async function listApps(root: string) {
 
 export function createAppServer(opts: AppServerOptions): http.Server {
   const root = path.resolve(opts.root);
+  const appOrigin = opts.appOrigin.replace(/\/+$/, '');
 
   async function handle(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     res.setHeader('access-control-allow-origin', '*');
@@ -117,7 +120,10 @@ export function createAppServer(opts: AppServerOptions): http.Server {
     const ext = path.extname(target).toLowerCase();
     const manifest = await readManifest(path.join(root, id, version, 'earlyweb.json'));
     if (!manifest) return send(404, 'not found');
-    res.setHeader('content-security-policy', appCsp(manifest, opts.shellOrigin));
+    res.setHeader(
+      'content-security-policy',
+      appCsp(manifest, opts.shellOrigin, `${appOrigin}/${id}/${version}/`),
+    );
     let data: Buffer;
     try {
       data = await fs.readFile(real);

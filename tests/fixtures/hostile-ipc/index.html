@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hostile IPC Test App</title>
+    <style>
+      body { margin: 0; padding: 8px; font: 12px/1.4 monospace; background: #fff; color: #000; }
+      #status { margin: 0 0 6px; font-weight: bold; }
+      #results { margin: 0; white-space: pre-wrap; word-break: break-all; }
+    </style>
+  </head>
+  <body>
+    <p id="status">Running IPC escape checks…</p>
+    <pre id="results"></pre>
+    <pre id="info"></pre>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

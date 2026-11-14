@@ -13,6 +13,7 @@
     "@earlyweb/protocol": "workspace:*",
     "@earlyweb/themes": "workspace:*",
     "@preact/signals": "^2.11.4",
+    "@tauri-apps/api": "^2",
     "preact": "^11.2.0",
     "valibot": "^1.5.0"
   },

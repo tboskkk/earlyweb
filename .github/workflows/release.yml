@@ -1,0 +1,119 @@
+name: Release
+
+# Push a tag `vX.Y.Z` matching package.json's version to build, sign the updates of and
+# publish EarlyWeb for Linux, Windows and macOS. The release's latest.json is what the
+# installed apps' updater checks.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+# Every action is pinned to a commit: this workflow holds the update-signing key, and a
+# moved tag on any action could exfiltrate it and sign a malicious update. For the same
+# reason it restores no caches (other workflows write them): signed builds start clean.
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Tag matches package.json version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          version="$(node -p "require('./package.json').version")"
+          if [ "$tag" != "$version" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match package.json version $version"
+            exit 1
+          fi
+
+  # Builds run one at a time into a draft release: tauri-action merges each platform into
+  # latest.json, and parallel jobs would race on that file and on creating the release.
+  # Nothing is public until `publish` has checked every platform is there.
+  build:
+    needs: check
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: true
+      max-parallel: 1
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            args: ""
+          - os: windows-latest
+            args: ""
+          - os: macos-latest
+            args: "--target universal-apple-darwin"
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+        with:
+          version: 9
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+          targets: ${{ runner.os == 'macOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Install Tauri Linux libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libsoup-3.0-dev libssl-dev \
+            libayatana-appindicator3-dev librsvg2-dev libxdo-dev build-essential file
+
+      - run: pnpm install --frozen-lockfile
+
+      # Test fixtures (hostile apps) must never ship.
+      - name: Guard against bundled test fixtures
+        shell: bash
+        run: |
+          pnpm build:bundle-apps
+          if compgen -G "dist/bundle-apps/test.earlyweb.*" > /dev/null; then
+            echo "::error::test fixtures found in dist/bundle-apps"
+            exit 1
+          fi
+
+      - uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: EarlyWeb ${{ github.ref_name }}
+          releaseBody: See the README for install steps.
+          releaseDraft: true
+          prerelease: false
+          includeUpdaterJson: true
+          args: ${{ matrix.args }}
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: latest.json lists every platform
+        run: |
+          gh release download "$GITHUB_REF_NAME" --pattern latest.json --dir "$RUNNER_TEMP"
+          for p in linux-x86_64 windows-x86_64 darwin-aarch64 darwin-x86_64; do
+            if ! jq -e --arg p "$p" '.platforms[$p].signature | length > 0' "$RUNNER_TEMP/latest.json" > /dev/null; then
+              echo "::error::latest.json has no signed entry for $p"
+              exit 1
+            fi
+          done
+      - name: Publish the release
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false --latest

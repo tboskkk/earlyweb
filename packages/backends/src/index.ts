@@ -3,5 +3,8 @@ export * from './home.ts';
 export * from './kv.ts';
 export * from './memory-kv.ts';
 export * from './path.ts';
+export * from './tauri/invoke.ts';
+export * from './tauri/tauri-fs.ts';
+export * from './tauri/tauri-kv.ts';
 export * from './web/idb-fs.ts';
 export * from './web/idb-kv.ts';

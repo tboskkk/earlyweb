@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-kv-delete"
+description = "Enables the kv_delete command without any pre-configured scope."
+commands.allow = ["kv_delete"]
+
+[[permission]]
+identifier = "deny-kv-delete"
+description = "Denies the kv_delete command without any pre-configured scope."
+commands.deny = ["kv_delete"]

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 48 48">
+  <title>Hostile Test App</title>
+  <path d="M24 3 L44 12 V24 C44 35 35 43 24 46 C13 43 4 35 4 24 V12 Z" fill="#c8d6ea" stroke="#3b4d6b" stroke-width="2.5"/>
+  <path d="M15 24 L21 30 L33 17" fill="none" stroke="#2a8f47" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

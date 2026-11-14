@@ -1,0 +1,54 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "EarlyWeb",
+  "version": "../package.json",
+  "identifier": "org.earlyweb.desktop",
+  "build": {
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../packages/shell/dist",
+    "beforeDevCommand": "pnpm dev:tauri-front",
+    "beforeBuildCommand": "pnpm prep:tauri"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "EarlyWeb",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: ewapp: http://ewapp.localhost; frame-src ewapp: http://ewapp.localhost; connect-src ipc: http://ipc.localhost ewapp: http://ewapp.localhost; object-src 'none'; base-uri 'none'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "resources": {
+      "../dist/bundle-apps/": "apps/"
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "createUpdaterArtifacts": true,
+    "macOS": {
+      "signingIdentity": "-"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDM2ODRCOTM3MzczNjAzMjYKUldRbUF6WTNON21FTm00b0xUbWNSVngvNk5MOGViS1VKNysrVjg3VGRjcGwvMnN4cERjNWZlNUUK",
+      "endpoints": ["https://github.com/tboskkk/earlyweb/releases/latest/download/latest.json"],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

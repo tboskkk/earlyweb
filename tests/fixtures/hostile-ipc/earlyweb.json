@@ -1,0 +1,16 @@
+{
+  "manifestVersion": 1,
+  "id": "test.earlyweb.hostile-ipc",
+  "name": "Hostile IPC Test App",
+  "version": "0.0.1",
+  "description": "Desktop self-test fixture: tries every way to reach Tauri IPC and read the canary.",
+  "author": { "name": "EarlyWeb" },
+  "license": "MIT",
+  "sdk": "^0.1.0",
+  "entry": "index.html",
+  "icons": { "16": "icons/16.svg", "32": "icons/32.svg", "48": "icons/48.svg" },
+  "window": { "width": 480, "height": 320 },
+  "permissions": [],
+  "network": [],
+  "category": "Tests"
+}

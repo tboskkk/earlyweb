@@ -1,5 +1,5 @@
 import '@earlyweb/themes/glass/chrome.css';
-import { createIdbFs, createIdbKv, ensureHome } from '@earlyweb/backends';
+import { ensureHome } from '@earlyweb/backends';
 import { applyTheme, glass } from '@earlyweb/themes';
 import { effect, signal } from '@preact/signals';
 import { render } from 'preact';
@@ -9,13 +9,14 @@ import { dialogHandlers } from './broker/methods/dialog.ts';
 import { fsHandlers } from './broker/methods/fs.ts';
 import { themeHandlers } from './broker/methods/theme.ts';
 import { windowHandlers } from './broker/methods/window.ts';
-import { APP_ORIGIN } from './config.ts';
 import { createDialogService } from './dialogs/dialog-service.ts';
 import { ModalLayer } from './dialogs/ModalLayer.tsx';
 import { AppFrame } from './host/AppFrame.tsx';
 import { emitInitialFocus, forwardWindowEvents, onWindowBlur } from './host/events.ts';
 import { createHandshake } from './host/handshake.ts';
 import { createLauncher } from './host/launcher.ts';
+import { createPlatform } from './platform.ts';
+import { runSelftest } from './selftest.ts';
 import { createFsService } from './services/fs-service.ts';
 import { createGrantTable } from './services/grants.ts';
 import { bootSession } from './state/boot-session.ts';
@@ -24,6 +25,7 @@ import { loadSession, restoreSession, saveSession, snapshot } from './state/sess
 import { createSessionSaver } from './state/session-saver.ts';
 import { createWindowStore } from './state/windows.ts';
 import { Desktop } from './ui/Desktop.tsx';
+import { onUpdateAvailable } from './update-prompt.ts';
 
 applyTheme(glass);
 
@@ -34,8 +36,8 @@ window.addEventListener('resize', () => {
 const store = createWindowStore(viewport);
 
 async function boot() {
-  const fs = await createIdbFs();
-  const kv = await createIdbKv();
+  const platform = await createPlatform();
+  const { fs, kv } = platform;
   await ensureHome(fs);
   const grants = await createGrantTable(kv);
   const fsService = createFsService(fs, grants);
@@ -44,10 +46,19 @@ async function boot() {
   if (import.meta.env.DEV)
     (window as unknown as { __ew?: unknown }).__ew = { dialogs, sessionIdle: () => saver.idle() };
 
+  // Rust announces a newer release it found; the user picks when to download and restart.
+  const { invoke, onEvent } = platform;
+  if (invoke && onEvent) {
+    onEvent('ew://update-available', (payload) => {
+      const version = (payload as { version?: unknown } | null)?.version;
+      if (typeof version === 'string') void onUpdateAvailable(version, { dialogs, invoke });
+    }).catch((err) => console.error('cannot listen for updates', err));
+  }
+
   const catalog = signal<CatalogEntry[]>([]);
   // false when the catalog failed to load: then saving stays disabled so the stored
   // session is not overwritten by the (empty) restored state.
-  const catalogReady = loadCatalog(APP_ORIGIN).then(
+  const catalogReady = loadCatalog(platform.appOrigin).then(
     (entries) => {
       catalog.value = entries;
       return true;
@@ -159,6 +170,14 @@ async function boot() {
           saver.enable();
         },
       });
+      // Desktop self-test builds only (`--features e2e` injects the flag into this frame).
+      const { invoke, onEvent } = platform;
+      const selftest = (window as { __EW_SELFTEST__?: unknown }).__EW_SELFTEST__ === true;
+      if (platform.kind === 'tauri' && invoke && onEvent && selftest) {
+        await runSelftest({ fs, invoke, onEvent, launcher, store }).catch((err) =>
+          invoke('e2e_report', { app: `error: ${err instanceof Error ? err.message : String(err)}` }),
+        );
+      }
     })
     .catch((err) => console.error('session boot failed', err));
 

@@ -1,0 +1,17 @@
+[package]
+name = "earlyweb-core"
+version = "0.1.0"
+description = "EarlyWeb's security-relevant backend logic, with no Tauri dependency"
+license = "MIT"
+edition = "2021"
+publish = false
+
+[dependencies]
+http = "1.5.0"
+percent-encoding = "2.3.2"
+regex = "1.13.1"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+
+[dev-dependencies]
+tempfile = "3.27.0"

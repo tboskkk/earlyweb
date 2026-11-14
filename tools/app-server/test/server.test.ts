@@ -7,6 +7,9 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { createAppServer } from '../src/server.ts';
 
 const SHELL = 'http://localhost:5173';
+// The origin the shell loads apps from; the CSP names each app's folder under it.
+const APP_ORIGIN = 'http://127.0.0.1:5174';
+const BASE = `${APP_ORIGIN}/org.test.app/1.0.0/`;
 const manifestJson = {
   manifestVersion: 1,
   id: 'org.test.app',
@@ -47,7 +50,7 @@ beforeAll(async () => {
   writeFileSync(join(broken, 'earlyweb.json'), '{not json');
   writeFileSync(join(tmp, 'secret'), 'top secret');
   symlinkSync(join(tmp, 'secret'), join(dir, 'link-out'));
-  server = createAppServer({ root, shellOrigin: SHELL });
+  server = createAppServer({ root, shellOrigin: SHELL, appOrigin: APP_ORIGIN });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
@@ -94,7 +97,7 @@ describe('static files', () => {
   test('html gets the app CSP and nosniff', async () => {
     const res = await fetch(`${base}/org.test.app/1.0.0/index.html`);
     expect(res.status).toBe(200);
-    expect(res.headers.get('content-security-policy')).toBe(appCsp(parseManifest(manifestJson), SHELL));
+    expect(res.headers.get('content-security-policy')).toBe(appCsp(parseManifest(manifestJson), SHELL, BASE));
     expect(res.headers.get('x-content-type-options')).toBe('nosniff');
     expect(res.headers.get('content-type')).toContain('text/html');
     expect(res.headers.get('access-control-allow-origin')).toBe('*');
@@ -106,15 +109,22 @@ describe('static files', () => {
     expect(res.headers.get('content-type')).toContain('text/javascript');
     expect(res.headers.get('access-control-allow-origin')).toBe('*');
     // Deliberate spec-driven change (PLAN.md 4.1): CSP on every app file response.
-    expect(res.headers.get('content-security-policy')).toBe(appCsp(parseManifest(manifestJson), SHELL));
+    expect(res.headers.get('content-security-policy')).toBe(appCsp(parseManifest(manifestJson), SHELL, BASE));
     expect(await res.text()).toBe('export {}');
+  });
+
+  test("the CSP names the app's own folder under the app origin", async () => {
+    const res = await fetch(`${base}/org.test.app/1.0.0/index.html`);
+    expect(res.headers.get('content-security-policy')).toContain(
+      "script-src 'self' http://127.0.0.1:5174/org.test.app/1.0.0/ 'wasm-unsafe-eval'",
+    );
   });
 
   test('svg carries the per-app CSP', async () => {
     const res = await fetch(`${base}/org.test.app/1.0.0/pic.svg`);
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('image/svg+xml');
-    expect(res.headers.get('content-security-policy')).toBe(appCsp(parseManifest(manifestJson), SHELL));
+    expect(res.headers.get('content-security-policy')).toBe(appCsp(parseManifest(manifestJson), SHELL, BASE));
   });
 
   test('unknown extension is octet-stream', async () => {

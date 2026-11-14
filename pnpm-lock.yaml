@@ -85,6 +85,9 @@ importers:
       '@preact/signals':
         specifier: ^2.11.4
         version: 2.11.4(preact@11.2.0)
+      '@tauri-apps/api':
+        specifier: ^2
+        version: 2.12.4
       preact:
         specifier: ^11.2.0
         version: 11.2.0
@@ -467,6 +470,9 @@ packages:
     peerDependenciesMeta:
       rollup:
         optional: true
+
+  '@tauri-apps/api@2.12.4':
+    resolution: {integrity: sha512-pVmfis+4zT8H0Qhp3xPZx9Ju7kpzvA6rr/PSJPyuwfvucTQ8sVt61NYU9KMkK703UFlYadFmjKA4HhybOtN0gg==}
 
   '@tauri-apps/cli-darwin-arm64@2.12.4':
     resolution: {integrity: sha512-OxqKSckIkoJ6vX2AjifIJpTasFC0Hbdoo7gEiCmAjauABO3U8m2MRsLWe+QTiBwDx1mIrvgA+rvI7tvDnbnHVg==}
@@ -1532,6 +1538,8 @@ snapshots:
       '@types/estree': 1.0.10
       estree-walker: 2.0.2
       picomatch: 4.0.7
+
+  '@tauri-apps/api@2.12.4': {}
 
   '@tauri-apps/cli-darwin-arm64@2.12.4':
     optional: true

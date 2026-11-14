@@ -1,6 +1,6 @@
 import { EwError } from '@earlyweb/protocol';
 import { type IDBPObjectStore, openDB } from 'idb';
-import type { FsBackend, FsStat } from '../fs.ts';
+import { compareStat, type FsBackend, type FsStat } from '../fs.ts';
 import { basename, dirname, isWithin, normalizePath } from '../path.ts';
 
 interface NodeRecord {
@@ -69,11 +69,7 @@ export async function createIdbFs(dbName = 'earlyweb-fs'): Promise<FsBackend> {
       if (!root) throw new EwError('ENOENT', `no such directory: ${d}`);
       if (root.kind !== 'dir') throw new EwError('EINVAL', `not a directory: ${d}`);
       const kids = (await db.getAllFromIndex('nodes', 'parent', d)) as NodeRecord[];
-      return kids
-        .map(toStat)
-        .sort((a, b) =>
-          a.kind !== b.kind ? (a.kind === 'dir' ? -1 : 1) : a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
-        );
+      return kids.map(toStat).sort(compareStat);
     },
 
     async read(p) {

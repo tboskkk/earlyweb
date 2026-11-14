@@ -1,5 +1,5 @@
 import '@earlyweb/themes/glass/chrome.css';
-import { createIdbFs, createIdbKv, ensureHome } from '@earlyweb/backends';
+import { ensureHome } from '@earlyweb/backends';
 import { applyTheme, glass } from '@earlyweb/themes';
 import { effect, signal } from '@preact/signals';
 import { render } from 'preact';
@@ -9,13 +9,13 @@ import { dialogHandlers } from './broker/methods/dialog.ts';
 import { fsHandlers } from './broker/methods/fs.ts';
 import { themeHandlers } from './broker/methods/theme.ts';
 import { windowHandlers } from './broker/methods/window.ts';
-import { APP_ORIGIN } from './config.ts';
 import { createDialogService } from './dialogs/dialog-service.ts';
 import { ModalLayer } from './dialogs/ModalLayer.tsx';
 import { AppFrame } from './host/AppFrame.tsx';
 import { emitInitialFocus, forwardWindowEvents, onWindowBlur } from './host/events.ts';
 import { createHandshake } from './host/handshake.ts';
 import { createLauncher } from './host/launcher.ts';
+import { createPlatform } from './platform.ts';
 import { createFsService } from './services/fs-service.ts';
 import { createGrantTable } from './services/grants.ts';
 import { bootSession } from './state/boot-session.ts';
@@ -34,8 +34,8 @@ window.addEventListener('resize', () => {
 const store = createWindowStore(viewport);
 
 async function boot() {
-  const fs = await createIdbFs();
-  const kv = await createIdbKv();
+  const platform = await createPlatform();
+  const { fs, kv } = platform;
   await ensureHome(fs);
   const grants = await createGrantTable(kv);
   const fsService = createFsService(fs, grants);
@@ -47,7 +47,7 @@ async function boot() {
   const catalog = signal<CatalogEntry[]>([]);
   // false when the catalog failed to load: then saving stays disabled so the stored
   // session is not overwritten by the (empty) restored state.
-  const catalogReady = loadCatalog(APP_ORIGIN).then(
+  const catalogReady = loadCatalog(platform.appOrigin).then(
     (entries) => {
       catalog.value = entries;
       return true;

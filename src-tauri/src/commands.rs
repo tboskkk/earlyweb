@@ -39,6 +39,8 @@ where
 
 #[tauri::command]
 pub async fn fs_stat(state: State<'_, AppState>, path: String) -> Result<Option<FsStat>, FsError> {
+    #[cfg(feature = "e2e")]
+    crate::e2e::note_access(&path);
     blocking(&state, move |v| v.stat(&path)).await
 }
 
@@ -49,6 +51,8 @@ pub async fn fs_list(state: State<'_, AppState>, path: String) -> Result<Vec<FsS
 
 #[tauri::command]
 pub async fn fs_read(state: State<'_, AppState>, path: String) -> Result<Response, FsError> {
+    #[cfg(feature = "e2e")]
+    crate::e2e::note_access(&path);
     blocking(&state, move |v| v.read(&path))
         .await
         .map(Response::new)

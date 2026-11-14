@@ -13,6 +13,10 @@ fn main() {
         "kv_get",
         "kv_set",
         "kv_delete",
+        // Self-test commands: listed and granted always, registered only with the `e2e`
+        // feature (src/lib.rs), so a release build has no handler for them.
+        "e2e_canary",
+        "e2e_report",
     ];
     tauri_build::try_build(
         tauri_build::Attributes::new()

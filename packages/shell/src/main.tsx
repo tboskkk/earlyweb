@@ -16,6 +16,7 @@ import { emitInitialFocus, forwardWindowEvents, onWindowBlur } from './host/even
 import { createHandshake } from './host/handshake.ts';
 import { createLauncher } from './host/launcher.ts';
 import { createPlatform } from './platform.ts';
+import { runSelftest } from './selftest.ts';
 import { createFsService } from './services/fs-service.ts';
 import { createGrantTable } from './services/grants.ts';
 import { bootSession } from './state/boot-session.ts';
@@ -159,6 +160,14 @@ async function boot() {
           saver.enable();
         },
       });
+      // Desktop self-test builds only (`--features e2e` injects the flag into this frame).
+      const invoke = platform.invoke;
+      const selftest = (window as { __EW_SELFTEST__?: unknown }).__EW_SELFTEST__ === true;
+      if (platform.kind === 'tauri' && invoke && selftest) {
+        await runSelftest({ fs, invoke, launcher, store }).catch((err) =>
+          invoke('e2e_report', { app: `error: ${err instanceof Error ? err.message : String(err)}` }),
+        );
+      }
     })
     .catch((err) => console.error('session boot failed', err));
 

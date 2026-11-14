@@ -13,6 +13,8 @@
     "allow-fs-rename",
     "allow-kv-get",
     "allow-kv-set",
-    "allow-kv-delete"
+    "allow-kv-delete",
+    "allow-e2e-canary",
+    "allow-e2e-report"
   ]
 }

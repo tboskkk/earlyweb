@@ -1,4 +1,6 @@
 mod commands;
+#[cfg(feature = "e2e")]
+mod e2e;
 mod scheme;
 
 use commands::AppState;
@@ -34,7 +36,7 @@ fn locations(app: &tauri::AppHandle) -> Result<(PathBuf, PathBuf), FsError> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let result = tauri::Builder::default()
+    let builder = tauri::Builder::default()
         // Must be the first plugin: a second launch focuses the running EarlyWeb instead
         // of starting another one that would race it on the same files and state.
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
@@ -42,7 +44,10 @@ pub fn run() {
                 let _ = window.unminimize();
                 let _ = window.set_focus();
             }
-        }))
+        }));
+    #[cfg(feature = "e2e")]
+    let builder = builder.plugin(e2e::plugin());
+    let result = builder
         .register_asynchronous_uri_scheme_protocol(scheme::SCHEME, scheme::handle)
         .setup(|app| {
             let places = locations(app.handle());
@@ -55,6 +60,8 @@ pub fn run() {
                 eprintln!("EarlyWeb saved state unavailable: {e}");
             }
             app.manage(AppState { vfs, kv });
+            #[cfg(feature = "e2e")]
+            e2e::start_watchdog();
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -68,6 +75,10 @@ pub fn run() {
             commands::kv_get,
             commands::kv_set,
             commands::kv_delete,
+            #[cfg(feature = "e2e")]
+            e2e::e2e_canary,
+            #[cfg(feature = "e2e")]
+            e2e::e2e_report,
         ])
         .run(tauri::generate_context!());
     if let Err(err) = result {
